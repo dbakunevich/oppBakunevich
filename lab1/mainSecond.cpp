@@ -7,32 +7,57 @@
 
 using namespace std::chrono;
 
-double scalarVectorsMultiplication(const double * vector1, const double * vector2, int N) {
-    double resultScalar = 0;
-    for (int i = 0; i < N; i++) {
+double finishCount(double *rVector, double *bVector, const int *countRowsAtProc, int ProcRank) {
+    double result;
+    double lenOfVec_r = 0.0f;
+    double lenOfVec_b = 0.0f;
+    for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
+        lenOfVec_r += pow(rVector[i], 2);
+    }
+    for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
+        lenOfVec_b += pow(bVector[i], 2);
+    }
+
+    double Vec_r = 0.0f;
+    double Vec_b = 0.0f;
+
+    MPI_Allreduce(&lenOfVec_r, &Vec_r, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(&lenOfVec_b, &Vec_b, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+    result = sqrt(Vec_r) / sqrt(Vec_b);
+    return result;
+}
+
+double scalarVectorsMultiplication(const double *vector1, const double *vector2, const int *countRowsAtProc, int ProcRank) {
+    double resultScalar = 0.0f;
+    for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
         resultScalar += vector1[i] * vector2[i];
     }
+    double scalar = 0.0f;
+    MPI_Allreduce(&resultScalar, &scalar, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     return resultScalar;
 }
 
-void vectorsSub(const double *vector1, const double *vector2, double *resultVector, int N) {
-    for (int i = 0; i < N; i++) {
+void vectorsSub(const double *vector1, const double *vector2, double *resultVector, const int* countRowsAtProc, int ProcRank) {
+    for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
         resultVector[i] = vector1[i] - vector2[i];
     }
 }
 
 void matrixAndVectorMul(const double *matrix, const double *vector1, double *resultVector, int size, int *shift, const int* countRowsAtProc, int ProcRank) {
+    auto *allVector1 = new double [size];
+    MPI_Allgather(vector1, countRowsAtProc[ProcRank], MPI_DOUBLE, allVector1, size, MPI_DOUBLE, MPI_COMM_WORLD);
 
-    auto *tmp = new double[size];
-    for(int i = 0; i < countRowsAtProc[ProcRank]; i++){
-        tmp[i] = 0.0f;
+    //auto *tmp = new double[size];
+    for(int i = 0; i < countRowsAtProc[ProcRank]; i++) {
+        resultVector[i] = 0.0f;
         for (int j = 0; j < size; j++) {
-            tmp[i] += matrix[i * size + j] * vector1[j];
+            resultVector[i] += matrix[i * size + j] * vector1[j];
         }
     }
-    MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Allgatherv(tmp, countRowsAtProc[ProcRank], MPI_DOUBLE, resultVector, countRowsAtProc, shift, MPI_DOUBLE, MPI_COMM_WORLD);
-    delete[] tmp;
+    //MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Allgatherv(tmp, countRowsAtProc[ProcRank], MPI_DOUBLE, resultVector, countRowsAtProc, shift, MPI_DOUBLE, MPI_COMM_WORLD);
+    //delete[] tmp;
 }
 
 void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z, double *&Ax, double *&Az, int size, int ProcRank, int ProcNum, int* &shift, int* &countRowsAtProc){
@@ -83,37 +108,23 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
         MPI_Sendrecv(&startLine, 1, MPI_INTEGER, i, 0, (shift+i), 1, MPI_INTEGER, i, 0, MPI_COMM_WORLD, &s);
     }
 
-    u = new double [size];
+    u = new double [NumberOfLines];
     for(int i = 0; i < size; i++) {
-        u[i] = cos(2 * M_PI * i / size);
+        u[i] = cos(2 * M_PI * i / NumberOfLines);
     }
 
-    b = new double [size];
-    matrixAndVectorMul(A, u, b, size, shift, countRowsAtProc, ProcRank);
+    b = new double [NumberOfLines];
+    matrixAndVectorMul(A, u, b, NumberOfLines, shift, countRowsAtProc, ProcRank);
 
-    x = new double [size];
+    x = new double [NumberOfLines];
     for(int i = 0; i < size; i++) {
         x[i] = 0.0f;
     }
 
-    r = new double [size];
-    z = new double [size];
-    Ax = new double [size];
-    Az = new double [size];
-}
-
-double finishCount(double *rVector, double *bVector, int N) {
-    double result;
-    double lenOfVec_r = 0;
-    double lenOfVec_b = 0;
-    for (int i = 0; i < N; i++) {
-        lenOfVec_r += pow(rVector[i], 2);
-    }
-    for (int i = 0; i < N; i++) {
-        lenOfVec_b += pow(bVector[i], 2);
-    }
-    result = sqrt(lenOfVec_r) / sqrt(lenOfVec_b);
-    return result;
+    r = new double [NumberOfLines];
+    z = new double [NumberOfLines];
+    Ax = new double [NumberOfLines];
+    Az = new double [NumberOfLines];
 }
 
 int main(int argc, char *argv[])
@@ -144,7 +155,7 @@ int main(int argc, char *argv[])
 
 
 
-    double      alpha,
+    double  alpha,
             beta,
             firstScalar,
             secondScalar;
@@ -160,7 +171,7 @@ int main(int argc, char *argv[])
     for (int i = 0; i < N; i++) {
         r[i] = b[i];
     }
-    vectorsSub(b, Ax, r, N);
+    vectorsSub(b, Ax, r, countRowsAtProc, ProcRank);
 
     /**
      * z_0 = r_0
@@ -175,17 +186,17 @@ int main(int argc, char *argv[])
      * завершения счёта ||r_n|| / ||b|| не будет меньше заданной точности, именно
      * того эпсилон, который мы задаём сами, чем меньше - тем лучше
     */
-    while (epsilon <= finishCount(r, b, N)) {
+    while (epsilon <= finishCount(r, b, countRowsAtProc, ProcRank)) {
         /**
          * Скалярное произведение(r_n, r_n)
         */
-        firstScalar = scalarVectorsMultiplication(r, r, N);
+        firstScalar = scalarVectorsMultiplication(r, r, countRowsAtProc, ProcRank);
 
         /**
         * Скалярное произведение(Az_n, z_n)
         */
         matrixAndVectorMul(A, z, Az, N, shift, countRowsAtProc, ProcRank);
-        secondScalar = scalarVectorsMultiplication(Az, z, N);
+        secondScalar = scalarVectorsMultiplication(Az, z, countRowsAtProc, ProcRank);
 
         /**
          * alpha =(r_n, r_n)/(Az_n, z_n)
@@ -200,7 +211,7 @@ int main(int argc, char *argv[])
             x[i] += alpha * z[i];
             r[i] -= alpha * Az[i];
         }
-        secondScalar = scalarVectorsMultiplication(r, r, N);
+        secondScalar = scalarVectorsMultiplication(r, r, countRowsAtProc, ProcRank);
 
         /**
          * beta =(r_n+1, r_n+1)/(r_n, r_n)
