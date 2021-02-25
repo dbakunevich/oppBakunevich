@@ -44,8 +44,44 @@ void vectorsSub(const double *vector1, const double *vector2, double *resultVect
     }
 }
 
-void matrixAndVectorMul(const double *matrix, const double *vector1, double *resultVector, int size, int *shift, const int* countRowsAtProc, int ProcRank) {
-    auto *allVector1 = new double [size];
+void matrixAndVectorMul(const double *matrix, const double *vector1, double *resultVector, int size, const int *shift, const int* countRowsAtProc, int ProcRank) {
+    //считаем partA * partX - записываем в буфер
+    auto * mulBuf = new double [countRowsAtProc[ProcRank] * size]; //буффер для умножения
+    for (int k = 0; k < countRowsAtProc[ProcRank]*size; ++k)
+        mulBuf[k] = 0.0f;
+
+    for (int i = 0; i < countRowsAtProc[ProcRank]; ++i) {
+        for (int j = 0; j < size; ++j) {
+            mulBuf[i * size + j] += matrix[i * size + j] * vector1[i];
+        }
+    }
+    //надо дебажить тут что-то не так с индексами массивов и умножением или суммой
+    //построчно суммируем элементы буфера
+    //так как при инициализации матрицу транспонировал, чтобы вычилсения были быстрее
+    auto * buffer = new double [size];
+    for (int k = 0; k < size; ++k)
+        buffer[k] = 0.0f;
+
+    for (int i = 0; i < countRowsAtProc[ProcRank]; ++i) {
+        for (int j = 0; j < size; ++j) {
+            buffer[j] += mulBuf[i * size + j];
+        }
+    }
+    //теперь нужно проссумировать соответсвующии блоки в каждом процессе
+    //каждый процесс отправляет нужную часть своего просуммированого столбца
+    // ( с shift[i] по countRowsAtProc[i] процессу i)
+    // процесс с номером i принимает эти данные и суммирует в соотвестующих яейках pratAx
+    MPI_Allreduce( MPI_IN_PLACE, buffer, size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+    for(int i = 0; i < countRowsAtProc[ProcRank]; i++){
+        resultVector[i] = buffer[i + shift[ProcRank]];
+    }
+
+    delete [] buffer;
+    delete [] mulBuf;
+
+
+    /*auto *allVector1 = new double [size];
     MPI_Allgather(vector1, countRowsAtProc[ProcRank], MPI_DOUBLE, allVector1, size, MPI_DOUBLE, MPI_COMM_WORLD);
 
     //auto *tmp = new double[size];
@@ -57,7 +93,7 @@ void matrixAndVectorMul(const double *matrix, const double *vector1, double *res
     }
     //MPI_Barrier(MPI_COMM_WORLD);
     //MPI_Allgatherv(tmp, countRowsAtProc[ProcRank], MPI_DOUBLE, resultVector, countRowsAtProc, shift, MPI_DOUBLE, MPI_COMM_WORLD);
-    //delete[] tmp;
+    //delete[] tmp;*/
 }
 
 void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z, double *&Ax, double *&Az, int size, int ProcRank, int ProcNum, int* &shift, int* &countRowsAtProc){
@@ -109,7 +145,7 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
     }
 
     u = new double [NumberOfLines];
-    for(int i = 0; i < size; i++) {
+    for(int i = 0; i < NumberOfLines; i++) {
         u[i] = cos(2 * M_PI * i / NumberOfLines);
     }
 
@@ -117,7 +153,7 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
     matrixAndVectorMul(A, u, b, NumberOfLines, shift, countRowsAtProc, ProcRank);
 
     x = new double [NumberOfLines];
-    for(int i = 0; i < size; i++) {
+    for(int i = 0; i < NumberOfLines; i++) {
         x[i] = 0.0f;
     }
 
@@ -136,8 +172,8 @@ int main(int argc, char *argv[])
 
     MPI_Init(&argc, &argv);
     int ProcNum, ProcRank;
-    MPI_Comm_size ( MPI_COMM_WORLD, &ProcNum);
-    MPI_Comm_rank ( MPI_COMM_WORLD, &ProcRank);
+    MPI_Comm_size (MPI_COMM_WORLD, &ProcNum);
+    MPI_Comm_rank (MPI_COMM_WORLD, &ProcRank);
 
     double *A = nullptr;
     double *b = nullptr;
@@ -187,6 +223,7 @@ int main(int argc, char *argv[])
      * того эпсилон, который мы задаём сами, чем меньше - тем лучше
     */
     while (epsilon <= finishCount(r, b, countRowsAtProc, ProcRank)) {
+        MPI_Barrier(MPI_COMM_WORLD);
         /**
          * Скалярное произведение(r_n, r_n)
         */
