@@ -1,11 +1,8 @@
 #include <iostream>
 #include <cmath>
-#include <chrono>
 #include <mpi.h>
 
 #define epsilon 10e-5
-
-using namespace std::chrono;
 
 double scalarVectorsMultiplication(const double * vector1, const double * vector2, int N) {
     double resultScalar = 0;
@@ -22,17 +19,14 @@ void vectorsSub(const double *vector1, const double *vector2, double *resultVect
 }
 
 void matrixAndVectorMul(const double *matrix, const double *vector1, double *resultVector, int size, int *shift, const int* countRowsAtProc, int ProcRank) {
-
-    auto *tmp = new double[size];
     for(int i = 0; i < countRowsAtProc[ProcRank]; i++){
-        tmp[i] = 0.0f;
+        resultVector[i] = 0.0f;
         for (int j = 0; j < size; j++) {
-                tmp[i] += matrix[i * size + j] * vector1[j];
+                resultVector[i] += matrix[i * size + j] * vector1[j];
         }
     }
     MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Allgatherv(tmp, countRowsAtProc[ProcRank], MPI_DOUBLE, resultVector, countRowsAtProc, shift, MPI_DOUBLE, MPI_COMM_WORLD);
-    delete[] tmp;
+    MPI_Allgatherv(resultVector, countRowsAtProc[ProcRank], MPI_DOUBLE, resultVector, countRowsAtProc, shift, MPI_DOUBLE, MPI_COMM_WORLD);
 }
 
 void init(double *&x, double *&A, double *&b, double *&u, int size, int ProcRank, int ProcNum, int* &shift, int* &countRowsAtProc){
@@ -144,24 +138,19 @@ int main(int argc, char *argv[]) {
                 secondScalar;
 
 
-    auto startTime = system_clock::now();
+    auto startTime = MPI_Wtime();
 
     /**
      * Далее у нас идёт чисто метод сопряжённых градиентов
      * r_0 = b - Ax_0
     */
     matrixAndVectorMul(A, x, Ax, N, shift, countRowsAtProc, ProcRank);
-    for (int i = 0; i < N; i++) {
-        r[i] = b[i];
-    }
     vectorsSub(b, Ax, r, N);
 
     /**
      * z_0 = r_0
     */
-    for (int i = 0; i < N; i++) {
-        z[i] = r[i];
-    }
+    std::copy(r, r + N, z);
 
 
     /**
@@ -208,15 +197,15 @@ int main(int argc, char *argv[]) {
             z[i] = r[i] + (beta * z[i]);
         }
     }
-    auto endTime = system_clock::now();
-    auto duration = duration_cast<nanoseconds>(endTime - startTime);
+    auto endTime = MPI_Wtime();
+    auto duration = endTime - startTime;
 
     /**
      * Сравниваем наш полученный вектор x и наш эталонный вектор u
      * Ура, они одинаковые
      */
     std::cout << "Compare u[] and x[] is equals" << std::endl;
-    std::cout << "Time: " << duration.count() / double(10e8) << " sec" << std::endl;
+    std::cout << "Time: " << duration << " sec" << std::endl;
 
     delete[] A;
     delete[] b;

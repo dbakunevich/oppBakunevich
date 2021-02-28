@@ -1,11 +1,10 @@
 #include <iostream>
 #include <cmath>
-#include <chrono>
 #include <mpi.h>
+#include <numeric>
 
 #define epsilon 10e-5
 
-using namespace std::chrono;
 
 double dotProduct(const double *vector1, const double *vector2, int count) {
     double sum = 0;
@@ -43,9 +42,9 @@ void vectorsSub(const double *vector1, const double *vector2, double *resultVect
 }
 
 void matrixAndVectorMul(const double *matrix, const double *vector1, double *resultVector, int size, const int *shift, const int* countRowsAtProc, int ProcRank) {
-    ///считаем partA * partX - записываем в буфер
+    ///считаем A * vector - записываем в буфер
     auto * mulBuf = new double [countRowsAtProc[ProcRank] * size]; //буффер для умножения
-    for (int k = 0; k < countRowsAtProc[ProcRank]*size; ++k)
+    for (int k = 0; k < countRowsAtProc[ProcRank] * size; ++k)
         mulBuf[k] = 0.0f;
 
     for (int i = 0; i < countRowsAtProc[ProcRank]; ++i) {
@@ -53,9 +52,8 @@ void matrixAndVectorMul(const double *matrix, const double *vector1, double *res
             mulBuf[i * size + j] += matrix[i * size + j] * vector1[i];
         }
     }
-    /**надо дебажить тут что-то не так с индексами массивов и умножением или суммой
-     *построчно суммируем элементы буфера
-     *так как при инициализации матрицу транспонировал, чтобы вычилсения были быстрее
+    /** построчно суммируем элементы буфера
+     *  так как при инициализации матрицу транспонировал, чтобы вычилсения были быстрее
      */
     auto * buffer = new double [size];
     for (int k = 0; k < size; ++k)
@@ -66,12 +64,12 @@ void matrixAndVectorMul(const double *matrix, const double *vector1, double *res
             buffer[j] += mulBuf[i * size + j];
         }
     }
-    /**теперь нужно проссумировать соответсвующии блоки в каждом процессе
-     *каждый процесс отправляет нужную часть своего просуммированого столбца
-     * ( с shift[i] по countRowsAtProc[i] процессу i)
-     * процесс с номером i принимает эти данные и суммирует в соотвестующих яейках A
+    /** теперь нужно проссумировать соответсвующии блоки в каждом процессе
+     *  каждый процесс отправляет нужную часть своего просуммированого столбца
+     *  (с shift[i] по countRowsAtProc[i] процессу i)
+     *  процесс с номером i принимает эти данные и суммирует в соотвестующих яейках A
      */
-    MPI_Allreduce( MPI_IN_PLACE, buffer, size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, buffer, size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
     for(int i = 0; i < countRowsAtProc[ProcRank]; i++){
         resultVector[i] = buffer[i + shift[ProcRank]];
@@ -148,16 +146,11 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
     z = new double [NumberOfLines];
     Ax = new double [NumberOfLines];
     Az = new double [NumberOfLines];
-
-    for(int i = 0; i < NumberOfLines; i++) {
-        x[i] = 0.0f;
-        r[i] = 0.0f;
-        z[i] = 0.0f;
-        Ax[i] = 0.0f;
-        Az[i] = 0.0f;
-    }
-
-
+    std::iota(x, x + countRowsAtProc[ProcRank], 0.0f);
+    std::iota(r, r + countRowsAtProc[ProcRank], 0.0f);
+    std::iota(z, z + countRowsAtProc[ProcRank], 0.0f);
+    std::iota(Ax, Ax + countRowsAtProc[ProcRank], 0.0f);
+    std::iota(Az, Az + countRowsAtProc[ProcRank], 0.0f);
 }
 
 int main(int argc, char *argv[]){
@@ -194,24 +187,19 @@ int main(int argc, char *argv[]){
             secondScalar;
 
 
-    auto startTime = system_clock::now();
+    auto startTime = MPI_Wtime();
 
     /**
      * Далее у нас идёт чисто метод сопряжённых градиентов
      * r_0 = b - Ax_0
     */
-    matrixAndVectorMul(A, x, Ax, N, shift, countRowsAtProc, ProcRank);
-    for (int i = 0; i < N; i++) {
-        r[i] = b[i];
-    }
+    matrixAndVectorMul(A, x, Ax, N, shift, countRowsAtProc, ProcRank);\
     vectorsSub(b, Ax, r, countRowsAtProc, ProcRank);
 
     /**
      * z_0 = r_0
     */
-    for (int i = 0; i < N; i++) {
-        z[i] = r[i];
-    }
+    std::copy(r, r + countRowsAtProc[ProcRank], z);
 
     /**
      * Выполняем итерации в цикле до тех пор, пока критерий
@@ -260,15 +248,15 @@ int main(int argc, char *argv[]){
             z[i] = r[i] + (beta * z[i]);
         }
     }
-    auto endTime = system_clock::now();
-    auto duration = duration_cast<nanoseconds>(endTime - startTime);
+    auto endTime = MPI_Wtime();
+    auto duration = endTime - startTime;
 
     /**
      * Сравниваем наш полученный вектор x и наш эталонный вектор u
      * Ура, они одинаковые
      */
     std::cout << "Compare u[] and x[] is equals" << std::endl;
-    std::cout << "Time: " << duration.count() / double(10e8) << " sec" << std::endl;
+    std::cout << "Time: " << duration<< " sec" << std::endl;
 
     MPI_Barrier(MPI_COMM_WORLD);
     for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
