@@ -3,6 +3,7 @@
 
 cmake-*
 .idea
+test.cpp
 
 # User-specific stuff
 .idea/**/workspace.xml
