@@ -16,18 +16,18 @@ double dotProduct(const double *vector1, const double *vector2, int count) {
     return fullSum;
 }
 
-double finishCount(double *rVector, double *bVector, const int *countRowsAtProc, int ProcRank) {
+double finishCount(double *rVector, double *bVector, int countRowsAtProc) {
     double result;
-    double lenOfVec_r = dotProduct(rVector, rVector, countRowsAtProc[ProcRank]);
-    double lenOfVec_b = dotProduct(bVector, bVector, countRowsAtProc[ProcRank]);
+    double lenOfVec_r = dotProduct(rVector, rVector, countRowsAtProc);
+    double lenOfVec_b = dotProduct(bVector, bVector, countRowsAtProc);
 
     result = sqrt(lenOfVec_r) / sqrt(lenOfVec_b);
     return result;
 }
 
-double scalarVectorsMultiplication(const double *vector1, const double *vector2, const int *countRowsAtProc, int ProcRank) {
+double scalarVectorsMultiplication(const double *vector1, const double *vector2, int countRowsAtProc) {
     double resultScalar = 0.0f;
-    for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
+    for (int i = 0; i < countRowsAtProc; i++) {
         resultScalar += vector1[i] * vector2[i];
     }
     double scalar = 0.0f;
@@ -35,19 +35,19 @@ double scalarVectorsMultiplication(const double *vector1, const double *vector2,
     return scalar;
 }
 
-void vectorsSub(const double *vector1, const double *vector2, double *resultVector, const int* countRowsAtProc, int ProcRank) {
-    for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
+void vectorsSub(const double *vector1, const double *vector2, double *resultVector, int countRowsAtProc) {
+    for (int i = 0; i < countRowsAtProc; i++) {
         resultVector[i] = vector1[i] - vector2[i];
     }
 }
 
-void matrixAndVectorMul(const double *matrix, const double *vector1, double *resultVector, int size, const int *shift, const int* countRowsAtProc, int ProcRank) {
+void matrixAndVectorMul(const double *matrix, const double *vector1, double *resultVector, int size, int shift, int countRowsAtProc) {
     ///считаем A * vector - записываем в буфер
-    auto * mulBuf = new double [countRowsAtProc[ProcRank] * size]; //буффер для умножения
-    for (int k = 0; k < countRowsAtProc[ProcRank] * size; ++k)
+    auto * mulBuf = new double [countRowsAtProc * size]; //буффер для умножения
+    for (int k = 0; k < countRowsAtProc * size; ++k)
         mulBuf[k] = 0.0f;
 
-    for (int i = 0; i < countRowsAtProc[ProcRank]; ++i) {
+    for (int i = 0; i < countRowsAtProc; ++i) {
         for (int j = 0; j < size; ++j) {
             mulBuf[i * size + j] += matrix[i * size + j] * vector1[i];
         }
@@ -59,7 +59,7 @@ void matrixAndVectorMul(const double *matrix, const double *vector1, double *res
     for (int k = 0; k < size; ++k)
         buffer[k] = 0.0f;
 
-    for (int i = 0; i < countRowsAtProc[ProcRank]; ++i) {
+    for (int i = 0; i < countRowsAtProc; ++i) {
         for (int j = 0; j < size; ++j) {
             buffer[j] += mulBuf[i * size + j];
         }
@@ -71,19 +71,19 @@ void matrixAndVectorMul(const double *matrix, const double *vector1, double *res
      */
     MPI_Allreduce(MPI_IN_PLACE, buffer, size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-    for(int i = 0; i < countRowsAtProc[ProcRank]; i++){
-        resultVector[i] = buffer[i + shift[ProcRank]];
+    for(int i = 0; i < countRowsAtProc; i++){
+        resultVector[i] = buffer[i + shift];
     }
 
     delete [] buffer;
     delete [] mulBuf;
 }
 
-void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z, double *&Ax, double *&Az, int size, int ProcRank, int ProcNum, int* &shift, int* &countRowsAtProc){
+void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z, double *&Ax, double *&Az, int size, int ProcRank, int ProcNum, int &shift, int &countRowsAtProc){
     ///смещение по элементам от начала для каждого процесса
-    shift = new int [ProcNum];
+    shift = 0;
     /// колво элементов которое процесс считает
-    countRowsAtProc = new int [ProcNum];
+    countRowsAtProc = 0;
 
     ///остаток
     int remainder = size % ProcNum;
@@ -121,19 +121,13 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
         }
     }
 
+
     /**
-     * "синхронизируем данные" -> теперь каждый процес будет знать
-     * количесвто строк которое исполняет другой процесс,
-     * а так же место в матрице с которого он начинает исполнение
-     * в ходе цикла каждый прцоесс отправит каждому своим данные
+     * Значение начала строки и количества
+     * строк для каждого процесса
      */
-    /*MPI_Status s;
-    for (int i = 0; i < ProcNum; i++) {
-        MPI_Sendrecv(&NumberOfLines, 1, MPI_INTEGER, i, 0, (countRowsAtProc+i), 1, MPI_INTEGER, i, 0, MPI_COMM_WORLD, &s);
-        MPI_Sendrecv(&startLine, 1, MPI_INTEGER, i, 0, (shift+i), 1, MPI_INTEGER, i, 0, MPI_COMM_WORLD, &s);
-    }*/
-    countRowsAtProc[ProcRank] = NumberOfLines;
-    shift[ProcRank] = startLine;
+    countRowsAtProc = NumberOfLines;
+    shift  = startLine;
 
     u = new double [NumberOfLines];
     for(int i = 0; i < NumberOfLines; i++) {
@@ -141,18 +135,18 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
     }
 
     b = new double [NumberOfLines];
-    matrixAndVectorMul(A, u, b, size, shift, countRowsAtProc, ProcRank);
+    matrixAndVectorMul(A, u, b, size, shift, countRowsAtProc);
 
     x = new double [NumberOfLines];
     r = new double [NumberOfLines];
     z = new double [NumberOfLines];
     Ax = new double [NumberOfLines];
     Az = new double [NumberOfLines];
-    std::iota(x, x + countRowsAtProc[ProcRank], 0.0f);
-    std::iota(r, r + countRowsAtProc[ProcRank], 0.0f);
-    std::iota(z, z + countRowsAtProc[ProcRank], 0.0f);
-    std::iota(Ax, Ax + countRowsAtProc[ProcRank], 0.0f);
-    std::iota(Az, Az + countRowsAtProc[ProcRank], 0.0f);
+    std::iota(x, x + countRowsAtProc, 0.0f);
+    std::iota(r, r + countRowsAtProc, 0.0f);
+    std::iota(z, z + countRowsAtProc, 0.0f);
+    std::iota(Ax, Ax + countRowsAtProc, 0.0f);
+    std::iota(Az, Az + countRowsAtProc, 0.0f);
 }
 
 int main(int argc, char *argv[]){
@@ -177,8 +171,8 @@ int main(int argc, char *argv[]){
     double *Ax = nullptr;
     double *Az = nullptr;
 
-    int *countRowsAtProc;
-    int *shift;
+    int countRowsAtProc;
+    int shift;
 
     init(x, A, b, u, r, z, Ax, Az, N, ProcRank, ProcNum, shift, countRowsAtProc);
 
@@ -195,32 +189,32 @@ int main(int argc, char *argv[]){
      * Далее у нас идёт чисто метод сопряжённых градиентов
      * r_0 = b - Ax_0
     */
-    matrixAndVectorMul(A, x, Ax, N, shift, countRowsAtProc, ProcRank);\
-    vectorsSub(b, Ax, r, countRowsAtProc, ProcRank);
+    matrixAndVectorMul(A, x, Ax, N, shift, countRowsAtProc);
+    vectorsSub(b, Ax, r, countRowsAtProc);
 
     /**
      * z_0 = r_0
     */
-    std::copy(r, r + countRowsAtProc[ProcRank], z);
+    std::copy(r, r + countRowsAtProc, z);
 
     /**
      * Выполняем итерации в цикле до тех пор, пока критерий
      * завершения счёта ||r_n|| / ||b|| не будет меньше заданной точности, именно
      * того эпсилон, который мы задаём сами, чем меньше - тем лучше
     */
-    while (epsilon <= finishCount(r, b, countRowsAtProc, ProcRank)) {
+    while (epsilon <= finishCount(r, b, countRowsAtProc)) {
         MPI_Barrier(MPI_COMM_WORLD);
         /**
          * Скалярное произведение(r_n, r_n)
         */
-        firstScalar = scalarVectorsMultiplication(r, r, countRowsAtProc, ProcRank);
+        firstScalar = scalarVectorsMultiplication(r, r, countRowsAtProc);
 
         /**
         * Скалярное произведение(Az_n, z_n)
         */
-        matrixAndVectorMul(A, z, Az, N, shift, countRowsAtProc, ProcRank);
+        matrixAndVectorMul(A, z, Az, N, shift, countRowsAtProc);
 
-        secondScalar = scalarVectorsMultiplication(Az, z, countRowsAtProc, ProcRank);
+        secondScalar = scalarVectorsMultiplication(Az, z, countRowsAtProc);
 
         /**
          * alpha =(r_n, r_n)/(Az_n, z_n)
@@ -231,12 +225,12 @@ int main(int argc, char *argv[]){
          * x_n+1 = x_n + alpha_n+1*z_n
          * r_n+1 = r_n - alpha_n+1*A*z_n
         */
-        for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
+        for (int i = 0; i < countRowsAtProc; i++) {
             x[i] += alpha * z[i];
             r[i] -= alpha * Az[i];
         }
 
-        secondScalar = scalarVectorsMultiplication(r, r, countRowsAtProc, ProcRank);
+        secondScalar = scalarVectorsMultiplication(r, r, countRowsAtProc);
 
         /**
          * beta =(r_n+1, r_n+1)/(r_n, r_n)
@@ -246,7 +240,7 @@ int main(int argc, char *argv[]){
         /**
          * z_n+1 = r_n+1 + beta_n+1*z_n
         */
-        for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
+        for (int i = 0; i < countRowsAtProc; i++) {
             z[i] = r[i] + (beta * z[i]);
         }
     }
@@ -261,7 +255,7 @@ int main(int argc, char *argv[]){
     std::cout << "Time: " << duration<< " sec" << std::endl;
 
     MPI_Barrier(MPI_COMM_WORLD);
-    for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
+    for (int i = 0; i < countRowsAtProc; i++) {
         std::cout << "index :" << i << " res: " << x[i] << " main: " << u[i] << std::endl;
     }
 
