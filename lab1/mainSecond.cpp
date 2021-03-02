@@ -252,7 +252,7 @@ int main(int argc, char *argv[]){
      * Ура, они одинаковые
      */
     std::cout << "Compare u[] and x[] is equals" << std::endl;
-    std::cout << "Time: " << duration<< " sec" << std::endl;
+    std::cout << "Time: " << duration << " sec" << std::endl;
 
     MPI_Barrier(MPI_COMM_WORLD);
     for (int i = 0; i < countRowsAtProc; i++) {
