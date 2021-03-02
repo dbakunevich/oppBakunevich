@@ -127,15 +127,17 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
      * а так же место в матрице с которого он начинает исполнение
      * в ходе цикла каждый прцоесс отправит каждому своим данные
      */
-    MPI_Status s;
+    /*MPI_Status s;
     for (int i = 0; i < ProcNum; i++) {
         MPI_Sendrecv(&NumberOfLines, 1, MPI_INTEGER, i, 0, (countRowsAtProc+i), 1, MPI_INTEGER, i, 0, MPI_COMM_WORLD, &s);
         MPI_Sendrecv(&startLine, 1, MPI_INTEGER, i, 0, (shift+i), 1, MPI_INTEGER, i, 0, MPI_COMM_WORLD, &s);
-    }
+    }*/
+    countRowsAtProc[ProcRank] = NumberOfLines;
+    shift[ProcRank] = startLine;
 
     u = new double [NumberOfLines];
     for(int i = 0; i < NumberOfLines; i++) {
-        u[i] = cos(2 * M_PI * i / size);;
+        u[i] = cos(2 * M_PI * i / size);
     }
 
     b = new double [NumberOfLines];
