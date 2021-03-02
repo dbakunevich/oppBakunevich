@@ -2,7 +2,7 @@
 #include <cmath>
 #include <mpi.h>
 
-#define epsilon 10e-5
+#define epsilon 10e-7
 
 double scalarVectorsMultiplication(const double * vector1, const double * vector2, int N) {
     double resultScalar = 0;
@@ -65,16 +65,21 @@ void init(double *&x, double *&A, double *&b, double *&u, int size, int ProcRank
         }
     }
 
-    /**
-     * "синхронизируем данные" -> теперь каждый процес будет знать
-     * количесвто строк которое исполняет другой процесс,
-     * а так же место в матрице с которого он начинает исполнение
-     * в ходе цикла каждый прцоесс отправит каждому своим данные
-     */
-    MPI_Status s;
-    for (int i = 0; i < ProcNum; i++) {
-        MPI_Sendrecv(&NumberOfLines, 1, MPI_INTEGER, i, 0, (countRowsAtProc+i), 1, MPI_INTEGER, i, 0, MPI_COMM_WORLD, &s);
-        MPI_Sendrecv(&startLine, 1, MPI_INTEGER, i, 0, (shift+i), 1, MPI_INTEGER, i, 0, MPI_COMM_WORLD, &s);
+    for (int i = 0; i < ProcNum; i++){
+        int rem = size % ProcNum; //остаток
+        int quo = size / ProcNum;
+        int NumOfLines = 0;
+        int startLineProc = 0;
+        if (i < rem) {
+            NumOfLines = quo + 1;
+            startLineProc = (i) * (NumOfLines);
+
+        } else {
+            NumOfLines = quo;
+            startLineProc = (rem * (NumOfLines + 1)) + ((i - rem) * NumOfLines);
+        }
+        countRowsAtProc[i] = NumOfLines;
+        shift[i] = startLineProc;
     }
 
     u = new double [size];
@@ -206,6 +211,11 @@ int main(int argc, char *argv[]) {
      */
     std::cout << "Compare u[] and x[] is equals" << std::endl;
     std::cout << "Time: " << duration << " sec" << std::endl;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
+        std::cout << "index :" << i << " res: " << x[i] << " main: " << u[i] << std::endl;
+    }
 
     delete[] A;
     delete[] b;

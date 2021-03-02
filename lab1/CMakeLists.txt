@@ -7,7 +7,7 @@ include_directories($ENV{MSMPI_INC})
 #find_package(MPI REQUIRED)
 SET(CMAKE_CXX_COMPILER mpicxx)
 
-add_executable(lab1 mainSecond.cpp)
+add_executable(lab1 main.cpp)
 
 set(LIB_ADDRESS "$ENV{MSMPI_LIB64}msmpi.lib")
 string(REPLACE "\\" "/" LIBRARY ${LIB_ADDRESS})
