@@ -135,7 +135,7 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
 
     u = new double [NumberOfLines];
     for(int i = 0; i < NumberOfLines; i++) {
-        u[i] = rand() % 10 * (float)(rand() % 10) / 100;
+        u[i] = cos(2 * M_PI * i / size);;
     }
 
     b = new double [NumberOfLines];
