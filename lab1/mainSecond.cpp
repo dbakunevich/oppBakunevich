@@ -48,7 +48,9 @@ void matrixAndVectorMul(const double *matrix, const double *vector1, double *res
         mulBuf[k] = 0.0f;
 
     for (int i = 0; i < countRowsAtProc; ++i) {
+        resultVector[i] = 0.0f;
         for (int j = 0; j < size; ++j) {
+            resultVector[i] += matrix[i * size + j] * vector1[i];
             mulBuf[i * size + j] += matrix[i * size + j] * vector1[i];
         }
     }
@@ -142,15 +144,14 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
     z = new double [NumberOfLines];
     Ax = new double [NumberOfLines];
     Az = new double [NumberOfLines];
-    std::iota(x, x + countRowsAtProc, 0.0f);
-    std::iota(r, r + countRowsAtProc, 0.0f);
-    std::iota(z, z + countRowsAtProc, 0.0f);
-    std::iota(Ax, Ax + countRowsAtProc, 0.0f);
-    std::iota(Az, Az + countRowsAtProc, 0.0f);
+    std::fill(x, x + countRowsAtProc, 0.0f);
+    std::fill(r, r + countRowsAtProc, 0.0f);
+    std::fill(z, z + countRowsAtProc, 0.0f);
+    std::fill(Ax, Ax + countRowsAtProc, 0.0f);
+    std::fill(Az, Az + countRowsAtProc, 0.0f);
 }
 
 int main(int argc, char *argv[]){
-    srand(time(nullptr));
 
     int N = 10;
     if (argc > 1){
