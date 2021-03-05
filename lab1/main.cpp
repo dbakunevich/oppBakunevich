@@ -113,9 +113,6 @@ double finishCount(double *rVector, double *bVector, int N) {
 
 int main(int argc, char *argv[]) {
     int N = 10000;
-    if (argc > 1){
-        N = atoi(argv[1]);
-    }
 
     MPI_Init(&argc, &argv);
     int ProcNum, ProcRank;
@@ -143,7 +140,7 @@ int main(int argc, char *argv[]) {
                 secondScalar;
 
 
-    auto startTime = MPI_Wtime();
+    double startTime = MPI_Wtime();
 
     /**
      * Далее у нас идёт чисто метод сопряжённых градиентов
@@ -202,8 +199,8 @@ int main(int argc, char *argv[]) {
             z[i] = r[i] + (beta * z[i]);
         }
     }
-    auto endTime = MPI_Wtime();
-    auto duration = endTime - startTime;
+    double endTime = MPI_Wtime();
+    double duration = endTime - startTime;
 
     /**
      * Сравниваем наш полученный вектор x и наш эталонный вектор u
