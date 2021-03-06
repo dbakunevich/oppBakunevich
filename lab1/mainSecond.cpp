@@ -136,7 +136,7 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
 
 int main(int argc, char *argv[]){
 
-    int N = 10;
+    int N = 1000;
 
     MPI_Init(&argc, &argv);
     int ProcNum, ProcRank;
@@ -253,69 +253,3 @@ int main(int argc, char *argv[]){
     MPI_Finalize();
     return 0;
 }
-
-/*int *pReceiveNum;  // Количество элементов, посылаемых процессом
-    int *pReceiveInd;  // Индекс элемента данных в результирующем
-    // векторе
-    int RestRows = size; // Количество строк матрицы, которые еще не
-    // распределены
-
-    // Выделение памяти для временных объектов
-    pReceiveNum = new int [ProcNum];
-    pReceiveInd = new int [ProcNum];
-
-    // Определение положения блоков результирующего вектора
-    pReceiveInd[0] = 0;
-    pReceiveNum[0] = size/ProcNum;
-    for (int i = 1; i < ProcNum; i++) {
-        RestRows -= pReceiveNum[i-1];
-        pReceiveNum[i] = RestRows / (ProcNum - i);
-        pReceiveInd[i] = pReceiveInd[i - 1] + pReceiveNum[i - 1];
-    }
-    // Сбор всего результирующего вектора на всех процессах
-    MPI_Allgatherv(resultVector, countRowsAtProc[ProcRank],
-                   MPI_DOUBLE, resultVector, pReceiveNum, pReceiveInd,
-                   MPI_DOUBLE, MPI_COMM_WORLD);
-
-    // Освобождение памяти
-    delete [] pReceiveNum;
-    delete [] pReceiveInd;*/
-
-
-/*///считаем A * vector - записываем в буфер
-auto * mulBuf = new double [countRowsAtProc * size]; //буффер для умножения
-for (int k = 0; k < countRowsAtProc * size; ++k)
-    mulBuf[k] = 0.0f;
-
-for (int i = 0; i < countRowsAtProc; ++i) {
-    resultVector[i] = 0.0f;
-    for (int j = 0; j < size; ++j) {
-        resultVector[i] += matrix[i * size + j] * vector1[i];
-        mulBuf[i * size + j] += matrix[i * size + j] * vector1[i];
-    }
-}
-*//** построчно суммируем элементы буфера
-     *  так как при инициализации матрицу транспонировал, чтобы вычилсения были быстрее
-     *//*
-    auto * buffer = new double [size];
-    for (int k = 0; k < size; ++k)
-        buffer[k] = 0.0f;
-
-    for (int i = 0; i < countRowsAtProc; ++i) {
-        for (int j = 0; j < size; ++j) {
-            buffer[j] += mulBuf[i * size + j];
-        }
-    }
-    *//** теперь нужно проссумировать соответсвующии блоки в каждом процессе
-     *  каждый процесс отправляет нужную часть своего просуммированого столбца
-     *  (с shift[i] по countRowsAtProc[i] процессу i)
-     *  процесс с номером i принимает эти данные и суммирует в соотвестующих яейках A
-     *//*
-    MPI_Allreduce(MPI_IN_PLACE, buffer, size, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-    for(int i = 0; i < countRowsAtProc; i++){
-        resultVector[i] = buffer[i + shift];
-    }
-
-    delete [] buffer;
-    delete [] mulBuf;*/
