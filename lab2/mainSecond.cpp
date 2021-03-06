@@ -6,26 +6,22 @@
 #define epsilon 10e-7
 
 double scalarVectorsMultiplication(const double * vector1, const double * vector2, int size) {
-    int i;
     double resultScalar = 0;
-    #pragma omp parallel for shared(vector1, vector2) private (i) reduction(+:resultScalar)
-    for (i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         resultScalar += vector1[i] * vector2[i];
     }
     return resultScalar;
 }
 
 void vectorsSub(const double *vector1, const double *vector2, double *resultVector, int size) {
-    int i;
-    #pragma omp parallel for shared(vector1, vector2, resultVector) private (i)
-    for (i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         resultVector[i] = vector1[i] - vector2[i];
     }
 }
 
 void matrixAndVectorMul(const double *matrix, const double *vector1, double *resultVector, int size) {
     int i, j;
-    #pragma omp parallel for shared(matrix, vector1, resultVector, size) default (none)  private (i, j)
+    #pragma omp parallel for shared(matrix, vector1, resultVector) private (i, j)
     for (i = 0; i < size; i++) {
         resultVector[i] = 0.0f;
         for (j = 0; j < size; j++) {
