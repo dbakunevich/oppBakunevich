@@ -8,7 +8,7 @@
 double scalarVectorsMultiplication(const double * vector1, const double * vector2, int size) {
     int i;
     double resultScalar = 0;
-    #pragma omp parallel for shared(vector1, vector2) private (i) reduction(+:resultScalar)
+    #pragma omp parallel for shared(vector1, vector2, size) private (i) default (none) reduction(+:resultScalar)
     for (i = 0; i < size; i++) {
         resultScalar += vector1[i] * vector2[i];
     }
@@ -17,7 +17,7 @@ double scalarVectorsMultiplication(const double * vector1, const double * vector
 
 void vectorsSub(const double *vector1, const double *vector2, double *resultVector, int size) {
     int i;
-    #pragma omp parallel for shared(vector1, vector2, resultVector) private (i)
+    #pragma omp parallel for shared(vector1, vector2, resultVector, size) default (none) private (i)
     for (i = 0; i < size; i++) {
         resultVector[i] = vector1[i] - vector2[i];
     }
@@ -35,10 +35,11 @@ void matrixAndVectorMul(const double *matrix, const double *vector1, double *res
 }
 
 void init(double *&x, double *&A, double *&b, double *&u, int size){
-
+    int i, j;
     A = new double [size * size];
-    for (int i = 0; i < size; i++) {
-        for(int j = 0; j < size; j++) {
+    #pragma omp parallel for shared(A, size) default (none)  private (i, j)
+    for (i = 0; i < size; i++) {
+        for(j = 0; j < size; j++) {
             A[i * size + j] = 1.0f;
             if (i == j){
                 A[i * size + j] = 2.0f;
@@ -46,7 +47,8 @@ void init(double *&x, double *&A, double *&b, double *&u, int size){
         }
     }
     u = new double [size];
-    for(int i = 0; i < size; i++) {
+    #pragma omp parallel for shared(u, size) default (none)  private (i)
+    for(i = 0; i < size; i++) {
         u[i] = cos(2 * M_PI * i / size);
     }
 
@@ -54,19 +56,22 @@ void init(double *&x, double *&A, double *&b, double *&u, int size){
     matrixAndVectorMul(A, u, b, size);
 
     x = new double [size];
-    for(int i = 0; i < size; i++) {
+    #pragma omp parallel for shared(x, size) default (none)  private (i)
+    for(i = 0; i < size; i++) {
         x[i] = 0.0f;
     }
 
 }
 
 double finishCount(double *rVector, double *bVector, int size) {
-    double result;
+    double result, i;
     double lenOfVec_r = 0;
     double lenOfVec_b = 0;
+    #pragma omp parallel for shared(rVector, size) private (i) default (none) reduction(+:lenOfVec_r)
     for (int i = 0; i < size; i++) {
         lenOfVec_r += pow(rVector[i], 2);
     }
+    #pragma omp parallel for shared(bVector, size) private (i) default (none) reduction(+:lenOfVec_b)
     for (int i = 0; i < size; i++) {
         lenOfVec_b += pow(bVector[i], 2);
     }
@@ -75,7 +80,7 @@ double finishCount(double *rVector, double *bVector, int size) {
 }
 
 int main(int argc, char *argv[]) {
-    int size = 20000;
+    int size = 30000;
 
 
     double *A = nullptr;
@@ -95,6 +100,7 @@ int main(int argc, char *argv[]) {
             beta,
             firstScalar,
             secondScalar;
+    int i;
 
     struct timespec start{}, finish{};
     clock_gettime(CLOCK_MONOTONIC_RAW, &start);
@@ -137,7 +143,8 @@ int main(int argc, char *argv[]) {
          * x_n+1 = x_n + alpha_n+1*z_n
          * r_n+1 = r_n - alpha_n+1*A*z_n
         */
-        for (int i = 0; i < size; i++) {
+        #pragma omp parallel for shared(x, r, z, Az, alpha, size) private (i) default (none)
+        for (i = 0; i < size; i++) {
             x[i] += alpha * z[i];
             r[i] -= alpha * Az[i];
         }
@@ -151,7 +158,8 @@ int main(int argc, char *argv[]) {
         /**
          * z_n+1 = r_n+1 + beta_n+1*z_n
         */
-        for (int i = 0; i < size; i++) {
+        #pragma omp parallel for shared(z, r, size) private (i, beta) default (none)
+        for (i = 0; i < size; i++) {
             z[i] = r[i] + (beta * z[i]);
         }
     }
@@ -163,7 +171,7 @@ int main(int argc, char *argv[]) {
      */
     std::cout << "Compare u[] and x[] is equals" << std::endl;
 
-    for (int i = 0; i < size; i++) {
+    for (i = 0; i < size; i++) {
         std::cout << "index :" << i << " res: " << x[i] << " main: " << u[i] << std::endl;
     }
 
