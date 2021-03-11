@@ -64,15 +64,16 @@ void init(double *&x, double *&A, double *&b, double *&u, int size){
 }
 
 double finishCount(double *rVector, double *bVector, int size) {
-    double result, i;
+    double result;
+    int i;
     double lenOfVec_r = 0;
     double lenOfVec_b = 0;
     #pragma omp parallel for shared(rVector, size) private (i) default (none) reduction(+:lenOfVec_r)
-    for (int i = 0; i < size; i++) {
+    for (i = 0; i < size; i++) {
         lenOfVec_r += pow(rVector[i], 2);
     }
     #pragma omp parallel for shared(bVector, size) private (i) default (none) reduction(+:lenOfVec_b)
-    for (int i = 0; i < size; i++) {
+    for (i = 0; i < size; i++) {
         lenOfVec_b += pow(bVector[i], 2);
     }
     result = sqrt(lenOfVec_r) / sqrt(lenOfVec_b);
@@ -158,7 +159,7 @@ int main(int argc, char *argv[]) {
         /**
          * z_n+1 = r_n+1 + beta_n+1*z_n
         */
-        #pragma omp parallel for shared(z, r, size) private (i, beta) default (none)
+        #pragma omp parallel for shared(z, r, size, beta) private (i) default (none)
         for (i = 0; i < size; i++) {
             z[i] = r[i] + (beta * z[i]);
         }
