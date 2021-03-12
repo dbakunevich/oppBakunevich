@@ -96,6 +96,10 @@ int main(int argc, char *argv[]) {
     auto *z = new double [size];
     auto *Ax = new double [size];
     auto *Az = new double [size];
+    std::fill(r, r+size, 0);
+    std::fill(z, z+size, 0);
+    std::fill(Ax, Ax+size, 0);
+    std::fill(Az, Az+size, 0);
 
     double  alpha,
             beta,
