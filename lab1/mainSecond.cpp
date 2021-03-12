@@ -118,7 +118,6 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
         u[i] = cos(2 * M_PI * i / size);
     }
 
-    std::cout <<"1";
     b = new double [NumberOfLines];
     matrixAndVectorMul(A, u, b, size, shift, countRowsAtProc, ProcNum, ProcRank);
 
@@ -136,7 +135,7 @@ void init(double *&x, double *&A, double *&b, double *&u, double *&r, double *&z
 
 int main(int argc, char *argv[]){
 
-    int N = 1000;
+    int N = 30000;
 
     MPI_Init(&argc, &argv);
     int ProcNum, ProcRank;
@@ -232,13 +231,14 @@ int main(int argc, char *argv[]){
      * Сравниваем наш полученный вектор x и наш эталонный вектор u
      * Ура, они одинаковые
      */
-    std::cout << "Compare u[] and x[] is equals" << std::endl;
-    std::cout << "Time: " << duration << " sec" << std::endl;
+
 
     MPI_Barrier(MPI_COMM_WORLD);
     for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
         std::cout << "index :" << i << " res: " << x[i] << " main: " << u[i] << std::endl;
     }
+    std::cout << "Compare u[] and x[] is equals" << std::endl;
+    std::cout << "Time: " << duration << " sec" << std::endl;
 
 
     delete[] A;

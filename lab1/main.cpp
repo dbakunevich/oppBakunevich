@@ -112,7 +112,7 @@ double finishCount(double *rVector, double *bVector, int N) {
 }
 
 int main(int argc, char *argv[]) {
-    int N = 10000;
+    int N = 30000;
 
     MPI_Init(&argc, &argv);
     int ProcNum, ProcRank;
@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
          * r_n+1 = r_n - alpha_n+1*A*z_n
         */
         for (int i = 0; i < N; i++) {
-            x[i] += alpha * z[i];
+            x[i] +=  alpha * z[i];
             r[i] -= alpha * Az[i];
         }
         secondScalar = scalarVectorsMultiplication(r, r, N);
@@ -206,13 +206,14 @@ int main(int argc, char *argv[]) {
      * Сравниваем наш полученный вектор x и наш эталонный вектор u
      * Ура, они одинаковые
      */
-    std::cout << "Compare u[] and x[] is equals" << std::endl;
-    std::cout << "Time: " << duration << " sec" << std::endl;
+
 
     MPI_Barrier(MPI_COMM_WORLD);
-    for (int i = 0; i < countRowsAtProc[ProcRank]; i++) {
+    for (int i = 0; i < N; i++) {
         std::cout << "index :" << i << " res: " << x[i] << " main: " << u[i] << std::endl;
     }
+    std::cout << "Compare u[] and x[] is equals" << std::endl;
+    std::cout << "Time: " << duration << " sec" << std::endl;
 
     delete[] A;
     delete[] b;
