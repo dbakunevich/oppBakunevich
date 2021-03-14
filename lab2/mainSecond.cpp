@@ -1,10 +1,11 @@
 #include <iostream>
 #include <cmath>
 #include <ctime>
-#include <cstring>
-#include <omp.h>
 
-#define epsilon 10e-7
+#define MATRIX_MIN 0
+#define MATRIX_MAX 50
+
+#define epsilon 10e-5
 
 void matrixAndVectorMul(const double *matrix, const double *vector1, double *resultVector, int size) {
     int i, j;
@@ -17,18 +18,22 @@ void matrixAndVectorMul(const double *matrix, const double *vector1, double *res
     }
 }
 
+double getRandomDouble(double min, double max){
+    return (max - min) * ((double) rand() / (double)RAND_MAX) + min;
+}
+
 void init(double *&x, double *&A, double *&b, double *&u, int size){
     int i, j;
     A = new double [size * size];
     #pragma omp parallel for shared(A, size) default (none) private (i, j)
     for (i = 0; i < size; i++) {
-        for(j = 0; j < size; j++) {
-            A[i * size + j] = 1.0f;
-            if (i == j){
-                A[i * size + j] = 1.0f * size;
-            }
+        for(j = 0; j <= i; j++) {
+            A[i * size + j] = getRandomDouble(MATRIX_MIN, MATRIX_MAX);
+            A[j * size + i] = A[i * size + j];
         }
+        A[i * size + i] = fabs(A[0 * size + 0]) + 100;
     }
+
     u = new double [size];
     #pragma omp parallel for shared(u, size) default (none)  private (i)
     for(i = 0; i < size; i++) {
@@ -39,15 +44,11 @@ void init(double *&x, double *&A, double *&b, double *&u, int size){
     matrixAndVectorMul(A, u, b, size);
 
     x = new double [size];
-    #pragma omp parallel for shared(x, size) default (none)  private (i)
-    for(i = 0; i < size; i++) {
-        x[i] = 0.0f;
-    }
-
+    std::fill(x, x + size, 0);
 }
 
 int main(int argc, char *argv[]) {
-    int size = 30000;
+    int size = 10;
 
     double *A = nullptr;
     double *b = nullptr;
@@ -79,6 +80,7 @@ int main(int argc, char *argv[]) {
     struct timespec start{}, finish{};
     clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
+    matrixAndVectorMul(A, x, Ax, size);
     /**
     * Далее у нас идёт чисто метод сопряжённых градиентов
     * r_0 = b - Ax_0
@@ -108,11 +110,16 @@ int main(int argc, char *argv[]) {
         #pragma omp for
         for (i = 0; i < size; i++) {
             Az[i] = 0.0f;
-            #pragma omp barier
             for (j = 0; j < size; j++) {
                 Az[i] += A[i * size + j] * z[j];
             }
         }
+
+        #pragma omp for reduction(+:secondScalar)
+        for (i = 0; i < size; i++) {
+            secondScalar += Az[i] * z[i];
+        }
+
         /**
          * Скалярное произведение(r_n, r_n)
         */
@@ -122,16 +129,9 @@ int main(int argc, char *argv[]) {
         }
 
 
-
-        #pragma omp for reduction(+:secondScalar)
-        for (i = 0; i < size; i++) {
-            secondScalar += Az[i] * z[i];
-        }
-
         /**
         * alpha =(r_n, r_n)/(Az_n, z_n)
         */
-
         #pragma omp single
         alpha = firstScalar / secondScalar;
 
@@ -152,29 +152,11 @@ int main(int argc, char *argv[]) {
             secondScalar += r[i] * r[i];
         }
 
+        /**
+        * beta =(r_n+1, r_n+1)/(r_n, r_n)
+        */
         #pragma omp single
-        {
-            lenOfVec_r = 0;
-            lenOfVec_b = 0;
-        }
-        #pragma omp for reduction(+:lenOfVec_r)
-        for (i = 0; i < size; i++) {
-            lenOfVec_r += pow(r[i], 2);
-        }
-        #pragma omp for reduction(+:lenOfVec_b)
-        for (i = 0; i < size; i++) {
-            lenOfVec_b += pow(b[i], 2);
-        }
-        #pragma omp single
-        {
-        exit = sqrt(lenOfVec_r) / sqrt(lenOfVec_b);
-        if (epsilon > exit)
-            flag = !flag;
-            /**
-            * beta =(r_n+1, r_n+1)/(r_n, r_n)
-            */
-            beta = secondScalar / firstScalar;
-        }
+        beta = secondScalar / firstScalar;
 
         /**
         * z_n+1 = r_n+1 + beta_n+1*z_n
@@ -185,6 +167,19 @@ int main(int argc, char *argv[]) {
             z[i] = r[i] + (beta *z[i]);
         }
 
+        #pragma omp for reduction(+:lenOfVec_r)
+        for (i = 0; i < size; i++) {
+            lenOfVec_r += pow(r[i], 2);
+        }
+        #pragma omp for reduction(+:lenOfVec_b)
+        for (i = 0; i < size; i++) {
+            lenOfVec_b += pow(b[i], 2);
+        }
+        #pragma omp single
+        exit = sqrt(lenOfVec_r) / sqrt(lenOfVec_b);
+        #pragma omp single
+        if (epsilon > exit)
+            flag = !flag;
     }
 
     clock_gettime(CLOCK_MONOTONIC_RAW, &finish);
@@ -196,7 +191,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Compare u[] and x[] is equals" << std::endl;
 
     for (i = 0; i < size; i++) {
-        std::cout << "index :" << i << " res: " << x[i] << " main: " << u[i] << std::endl;
+        std::cout << "index :" << i << " res: " << x[i] << " expected: " << u[i] << std::endl;
     }
 
     std::cout << "Time: " << ((double) finish.tv_sec - start.tv_sec + 0.000000001 * (double) (finish.tv_nsec - start.tv_nsec)) << '\n';
