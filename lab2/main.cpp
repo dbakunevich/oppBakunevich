@@ -110,7 +110,6 @@ int main(int argc, char *argv[]) {
     struct timespec start{}, finish{};
     clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
-    matrixAndVectorMul(A, x, Ax, size);
     /**
      * Далее у нас идёт чисто метод сопряжённых градиентов
      * r_0 = b - Ax_0
