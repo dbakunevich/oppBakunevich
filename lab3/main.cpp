@@ -6,14 +6,10 @@
 #define N2 4
 #define N3 4
 
-/// Решетка
-#define P1 2
-#define P2 2
-
 /// Рандом для случайного заполнения матриц
 /// А и В
-#define MATRIX_MIN -50
-#define MATRIX_MAX 50
+#define MATRIX_MIN 0
+#define MATRIX_MAX 1
 
 
 double getRandomDouble(double min, double max){
@@ -38,49 +34,17 @@ void printMatrix(const double * matrix, int firstBoard, int secondBoard){
     printf("\n");
 }
 
-int main(int argc, char *argv[]) {
-    MPI_Init(&argc, &argv);
+void createMatrix(double ** A, double ** B, double ** C){
+    *A = new double[N1 * N2];
+    *B = new double[N2 * N3];
+    *C = new double[N1 * N3];
 
-    MPI_Comm gridComm;
-    MPI_Comm rowComm;
-    MPI_Comm colComm;
+    fillMatrix(*A, N1, N2);
+    fillMatrix(*B, N2, N3);
+}
 
-    int dims[2] = {0, 0};
-    int periods[2] = {0, 0};
-    int coords[2];
-    int reorder = 0;
-    int ProcNum, ProcRank;
-
-    MPI_Comm_size (MPI_COMM_WORLD, &ProcNum);
-    MPI_Comm_rank (MPI_COMM_WORLD, &ProcRank);
-
-    MPI_Dims_create(ProcNum, 2, dims);
-    MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, reorder, &gridComm);
-    MPI_Cart_coords(gridComm, ProcRank, 2, coords);
-    MPI_Comm_split(gridComm, coords[1], coords[0], &rowComm);
-    MPI_Comm_split(gridComm, coords[0], coords[1], &colComm);
-
-
-    double *A = new double[N1 * N2];
-    double *B = new double[N2 * N3];
-    double *C = new double[N1 * N3];
-
-    if(ProcRank == 0) {
-        fillMatrix(A, N1, N2);
-        fillMatrix(B, N2, N3);
-        //std::fill(C, C + N1 * N3, 0);
-    }
-
-
-    int segmentRows = N1 / dims[1];
-    int segmentCols = N3 / dims[0];
-    double *segmentA = new double[segmentRows * N2];
-    double *segmentB = new double[N2 * segmentCols];
-    double *segmentC = new double[segmentRows * segmentCols];
-    std::fill(segmentC, segmentC + segmentRows * segmentCols, 0);
-
-    double matMulTime = -MPI_Wtime();
-
+void scatterA_B(double *A, double *segmentA, double *B, double *segmentB, const int *coords, int segmentRows, int segmentCols, MPI_Comm rowComm,
+                MPI_Comm colComm){
     if (coords[0] == 0) {
         MPI_Scatter(A, segmentRows * N2, MPI_DOUBLE, segmentA, segmentRows * N2, MPI_DOUBLE, 0, colComm);
     }
@@ -102,17 +66,10 @@ int main(int argc, char *argv[]) {
 
     MPI_Bcast(segmentA, segmentRows * N2, MPI_DOUBLE, 0, rowComm);
     MPI_Bcast(segmentB, N2 * segmentCols, MPI_DOUBLE, 0, colComm);
+}
 
-    double segmentMulTime = -MPI_Wtime();
-    for (int i = 0; i < segmentRows; ++i) {
-        for (int k = 0; k < N2; ++k) {
-            for (int j = 0; j < segmentCols; ++j) {
-                segmentC[i * segmentCols + j] += segmentA[i * N2 + k] * segmentB[k * segmentCols + j];
-            }
-        }
-    }
-    segmentMulTime += MPI_Wtime();
-
+void gatherC(double * C, double * segmentC, const int * dims, int * coords, int segmentRows, int segmentCols,
+             int ProcNum, MPI_Comm gridComm, MPI_Comm rowComm, MPI_Comm colComm){
     MPI_Datatype recvSegment;
     MPI_Datatype recvSegmentDouble;
 
@@ -139,6 +96,33 @@ int main(int argc, char *argv[]) {
     MPI_Comm_free(&gridComm);
     MPI_Comm_free(&colComm);
     MPI_Comm_free(&rowComm);
+}
+
+void mainWork(double * A, double  * B, double * C, int ProcNum, int ProcRank, const int * dims, int * coords, MPI_Comm gridComm, MPI_Comm rowComm, MPI_Comm colComm){
+    int segmentRows = N1 / dims[1];
+    int segmentCols = N3 / dims[0];
+    double *segmentA = new double[segmentRows * N2];
+    double *segmentB = new double[N2 * segmentCols];
+    double *segmentC = new double[segmentRows * segmentCols];
+    std::fill(segmentC, segmentC + segmentRows * segmentCols, 0);
+
+    double matMulTime = -MPI_Wtime();
+
+    scatterA_B(A, segmentA, B, segmentB, coords, segmentRows, segmentCols, rowComm, colComm);
+
+
+    double segmentMulTime = -MPI_Wtime();
+    for (int i = 0; i < segmentRows; ++i) {
+        for (int k = 0; k < N2; ++k) {
+            for (int j = 0; j < segmentCols; ++j) {
+                segmentC[i * segmentCols + j] += segmentA[i * N2 + k] * segmentB[k * segmentCols + j];
+            }
+        }
+    }
+    segmentMulTime += MPI_Wtime();
+
+    gatherC(C, segmentC, dims, coords, segmentRows, segmentCols,
+            ProcNum, gridComm, rowComm, colComm);
 
     matMulTime += MPI_Wtime();
 
@@ -151,14 +135,46 @@ int main(int argc, char *argv[]) {
         printMatrix(C, N1, N3);
     }
 
+    delete[] segmentA;
+    delete[] segmentB;
+    delete[] segmentC;
+}
+
+int main(int argc, char *argv[]) {
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm gridComm;
+    MPI_Comm rowComm;
+    MPI_Comm colComm;
+
+    int dims[2] = {0, 0};
+    int periods[2] = {0, 0};
+    int coords[2];
+    int reorder = 0;
+    int ProcNum, ProcRank;
+
+    MPI_Comm_size (MPI_COMM_WORLD, &ProcNum);
+    MPI_Comm_rank (MPI_COMM_WORLD, &ProcRank);
+
+    MPI_Dims_create(ProcNum, 2, dims);
+    MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, reorder, &gridComm);
+    MPI_Cart_coords(gridComm, ProcRank, 2, coords);
+    MPI_Comm_split(gridComm, coords[1], coords[0], &rowComm);
+    MPI_Comm_split(gridComm, coords[0], coords[1], &colComm);
+
+    double *A = nullptr;
+    double *B = nullptr;
+    double *C = nullptr;
+
+    if (ProcRank == 0) {
+        createMatrix(&A, &B, &C);
+    }
+
+    mainWork(A, B, C, ProcNum, ProcRank, dims, coords, gridComm, rowComm, colComm);
 
     delete[] A;
     delete[] B;
     delete[] C;
-
-    delete[] segmentA;
-    delete[] segmentB;
-    delete[] segmentC;
 
     MPI_Finalize();
     return 0;
