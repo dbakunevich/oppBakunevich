@@ -3,6 +3,8 @@
 
 cmake-*
 .idea
+lab1/
+lab2/
 
 # User-specific stuff
 .idea/**/workspace.xml
