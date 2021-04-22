@@ -9,9 +9,9 @@
 #define DY 2.0f
 #define DZ 2.0f
 
-#define NX 100
-#define NY 100
-#define NZ 1000
+#define NX 400
+#define NY 400
+#define NZ 400
 
 
 double f (double x, double y, double z) {
@@ -72,8 +72,9 @@ int main(int argc, char *argv[]) {
         for (int y = 0; y < Y; y++) {
             for (int z = 0; z < Z; z++) {
                 if ((localX == 0) || (y == 0) || (z == 0) || (localX == NX - 1) || (y == NY - 1) || (z == NZ - 1)) {
-                    functionIterations[0][x * Y * Z + y * Z + z] = f((localX * hx) - 1, (y * hy) - 1, (z * hz) - 1);
-                    functionIterations[1][x * Y * Z + y * Z + z] = f((localX * hx) - 1, (y * hy) - 1, (z * hz) - 1);
+                    double phiValue = f((localX * hx) - 1, (y * hy) - 1, (z * hz) - 1);
+                    functionIterations[0][x * Y * Z + y * Z + z] = phiValue;
+                    functionIterations[1][x * Y * Z + y * Z + z] = phiValue;
                 }
             }
         }
@@ -153,7 +154,7 @@ int main(int argc, char *argv[]) {
                     functionIterations[newIter][x * Y * Z + y * Z + z] = element;
 
                     tmpCriteria = fabs(element -
-                            f(((x + shift[procRank]) * hx) - 1, (y * hy) - 1, (z * hz) - 1)) > e ? 1 : 0;
+                            functionIterations[prevIter][x * Y * Z + y * Z + z]) > e ? 1 : 0;
                 }
 
                 /// Right border
@@ -170,7 +171,7 @@ int main(int argc, char *argv[]) {
                     functionIterations[newIter][x * Y * Z + y * Z + z] = element;
 
                     tmpCriteria = fabs(element -
-                            f(((x + shift[procRank]) * hx) - 1, (y * hy) - 1, (z * hz) - 1)) > e ? 1 : 0;
+                            functionIterations[prevIter][x * Y * Z + y * Z + z]) > e ? 1 : 0;
                 }
             }
         }
