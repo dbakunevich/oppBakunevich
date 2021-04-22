@@ -22,6 +22,7 @@ double p(double x, double y, double z) {
     return 6 - a * f(x, y, z);
 }
 
+
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
     int procNum, procRank;
