@@ -254,31 +254,3 @@ int main(int argc, char *argv[]) {
     MPI_Finalize();
     return 0;
 }
-
-//    if (procRank == 0){
-//        for (int x = 0; x < X ; ++x) {
-//            for (int y = 0; y < Y; ++y) {
-//                for (int z = 0; z < Z; ++z) {
-//                    printf("%lf ", functionIterations[0][x * Y * Z + y * Z + z]);
-//                } printf("\n");
-//            } printf("\n");
-//        } printf("\n");
-//    }
-
-
-/*void sendBorders(int Y, int Z, int procRank, int prevIter, int procNum, const int * sizePerThreads, double *(functionIterations[]),
-                 MPI_Request sendLeftBorder, MPI_Request sendRightBorder, MPI_Request recvLeftBorder, MPI_Request recvRightBorder,
-                 double * leftBorder, double * rightBorder){
-    if (procRank != 0) {
-        MPI_Isend(&(functionIterations[prevIter][0 + 0 + 0]), Y * Z, MPI_DOUBLE,
-                  procRank - 1, 0, MPI_COMM_WORLD, &sendLeftBorder);
-        MPI_Irecv(leftBorder, Y * Z, MPI_DOUBLE, procRank - 1, 1, MPI_COMM_WORLD, &recvLeftBorder);
-    }
-    if (procRank != procNum - 1) {
-        MPI_Isend(&(functionIterations[prevIter][(sizePerThreads[procRank] - 1) * Y * Z + 0 + 0]), Y * Z, MPI_DOUBLE,
-                  procRank + 1, 1, MPI_COMM_WORLD, &sendRightBorder);
-        MPI_Irecv(rightBorder, Y * Z, MPI_DOUBLE, procRank + 1, 0, MPI_COMM_WORLD, &recvRightBorder);
-    }
-}
-sendBorders(Y, Z, procRank, prevIter, procNum, sizePerThreads, functionIterations, sendLeftBorder, sendRightBorder,
-                    recvLeftBorder, recvRightBorder, leftBorder, rightBorder);*/
