@@ -106,6 +106,7 @@ void mainWork(int X, int Y, int Z, double hx, double hy, double hz, double facto
     int criteria = 1;
     double time = -MPI_Wtime();
 
+
     while (criteria) {
         int tmpCriteria = 0;
         newIter = 1 - newIter;
