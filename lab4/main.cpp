@@ -37,44 +37,29 @@ void fillFI(int X, int Y, int Z, double hx, double hy, double hz, int procRank,
     }
 }
 
-double
-countElement(int x, int y, int z, int Y, int Z, double hx, double hy, double hz, double hx2, double hy2, double hz2,
-             int procRank, int prevIter, double factor, const int *shift, double *functionIterations[]) {
-    double phix = ((functionIterations[prevIter][(x - 1) * Y * Z + y * Z + z]) +
-            (functionIterations[prevIter][(x + 1) * Y * Z + y * Z + z])) / hx2;
+
+
+double countElement(int x, int y, int z, int Y, int Z, double hx, double hy, double hz, double hx2, double hy2, double hz2,
+             int procRank, int prevIter, double factor, const int *shift,
+             const double *leftBorder, const double *rightBorder, int type, double *functionIterations[]) {
+    double phix;
+    if (type == 0) {
+        phix = ((functionIterations[prevIter][(x - 1) * Y * Z + y * Z + z]) +
+                       (functionIterations[prevIter][(x + 1) * Y * Z + y * Z + z])) / hx2;
+    } else if (type == 1) {
+        phix = (leftBorder[y * Z + z] +
+                       (functionIterations[prevIter][(x + 1) * Y * Z + y * Z + z])) / hx2;
+    } else{
+        phix = ((functionIterations[prevIter][(x - 1) * Y * Z + y * Z + z]) +
+                          rightBorder[y * Z + z]) / hx2;
+    }
+
     double phiy = ((functionIterations[prevIter][x * Y * Z + (y - 1) * Z + z]) +
             (functionIterations[prevIter][x * Y * Z + (y + 1) * Z + z])) / hy2;
     double phiz = ((functionIterations[prevIter][x * Y * Z + y * Z + (z - 1)]) +
             (functionIterations[prevIter][x * Y * Z + y * Z + (z + 1)])) / hz2;
     return factor * (phix + phiy + phiz -
             p(((x + shift[procRank]) * hx) - 1, (y * hy) - 1, (z * hz) - 1));
-}
-
-double
-countElementLeft(int x, int y, int z, int Y, int Z, double hx, double hy, double hz, double hx2, double hy2, double hz2,
-                 int procRank, int prevIter, double factor, const int *shift, const double *leftBorder,
-                 double *functionIterations[]) {
-    double phix = (leftBorder[y * Z + z] +
-            (functionIterations[prevIter][(x + 1) * Y * Z + y * Z + z])) / hx2;
-    double phiy = ((functionIterations[prevIter][x * Y * Z + (y - 1) * Z + z]) +
-            (functionIterations[prevIter][x * Y * Z + (y + 1) * Z + z])) / hy2;
-    double phiz = ((functionIterations[prevIter][x * Y * Z + y * Z + (z - 1)]) +
-            (functionIterations[prevIter][x * Y * Z + y * Z + (z + 1)])) / hz2;
-    return factor * (phix + phiy + phiz -
-                     p(((x + shift[procRank]) * hx) - 1, (y * hy) - 1, (z * hz) - 1));
-}
-
-double countElementRight(int x, int y, int z, int Y, int Z, double hx, double hy, double hz, double hx2, double hy2,
-                         double hz2, int procRank, int prevIter, double factor, const int *shift,
-                         const double *rightBorder, double *functionIterations[]) {
-    double phix = ((functionIterations[prevIter][(x - 1) * Y * Z + y * Z + z]) +
-            rightBorder[y * Z + z]) / hx2;
-    double phiy = ((functionIterations[prevIter][x * Y * Z + (y - 1)* Z + z]) +
-            (functionIterations[prevIter][x * Y * Z + (y + 1) * Z + z])) / hy2;
-    double phiz = ((functionIterations[prevIter][x * Y * Z + y * Z + (z - 1)]) +
-            (functionIterations[prevIter][x * Y * Z + y * Z + (z + 1)])) / hz2;
-    return factor * (phix + phiy + phiz -
-                     p(((x + shift[procRank]) * hx) - 1, (y * hy) - 1, (z * hz) - 1));
 }
 
 double grade(int X, int Y, int Z, double hx, double hy, double hz, int procRank, int newIter,
@@ -143,7 +128,8 @@ void mainWork(int X, int Y, int Z, double hx, double hy, double hz, double facto
             for (int y = 1; y < Y - 1; ++y) {
                 for (int z = 1; z < Z - 1; ++z) {
                     double element = countElement(x, y, z, Y, Z, hx, hy, hz, hx2, hy2, hz2,
-                                                  procRank, prevIter, factor, shift, functionIterations);
+                                                  procRank, prevIter, factor, shift,
+                                                  leftBorder, rightBorder, 0, functionIterations);
                     functionIterations[newIter][x * Y * Z + y * Z + z] = element;
 
                     tmpCriteria = fabs(element -
@@ -161,9 +147,9 @@ void mainWork(int X, int Y, int Z, double hx, double hy, double hz, double facto
                 /// Left border
                 if (procRank != 0) {
                     int x = 0;
-                    double element = countElementLeft(x, y, z, Y, Z, hx, hy, hz, hx2, hy2, hz2,
-                                                      procRank, prevIter, factor, shift, leftBorder,
-                                                      functionIterations);
+                    double element = countElement(x, y, z, Y, Z, hx, hy, hz, hx2, hy2, hz2,
+                                                  procRank, prevIter, factor, shift,
+                                                  leftBorder, rightBorder, 1, functionIterations);
                     functionIterations[newIter][x * Y * Z + y * Z + z] = element;
 
                     tmpCriteria = fabs(element -
@@ -174,9 +160,9 @@ void mainWork(int X, int Y, int Z, double hx, double hy, double hz, double facto
                 if (procRank != procNum - 1) {
                     int x = X - 1;
 
-                    double element = countElementRight(x, y, z, Y, Z, hx, hy, hz, hx2, hy2, hz2,
-                                                       procRank, prevIter, factor, shift, rightBorder,
-                                                       functionIterations);
+                    double element = countElement(x, y, z, Y, Z, hx, hy, hz, hx2, hy2, hz2,
+                                                  procRank, prevIter, factor, shift,
+                                                  leftBorder, rightBorder, 2, functionIterations);
                     functionIterations[newIter][x * Y * Z + y * Z + z] = element;
 
                     tmpCriteria = fabs(element -
