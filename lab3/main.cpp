@@ -98,7 +98,7 @@ void gatherC(double * C, double * segmentC, const int * dims, int * coords, int 
     MPI_Comm_free(&rowComm);
 }
 
-void mainWork(double * A, double  * B, double * C, int ProcNum, int ProcRank, const int * dims, int * coords, MPI_Comm gridComm, MPI_Comm rowComm, MPI_Comm colComm){
+void  mainWork(double * A, double  * B, double * C, int ProcNum, int ProcRank, const int * dims, int * coords, MPI_Comm gridComm, MPI_Comm rowComm, MPI_Comm colComm){
     int segmentRows = N1 / dims[1];
     int segmentCols = N3 / dims[0];
     double *segmentA = new double[segmentRows * N2];
