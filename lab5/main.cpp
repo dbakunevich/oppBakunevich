@@ -1,7 +1,7 @@
 #include <iostream>
 #include <pthread.h>
 #include <cmath>
-#include <float.h>
+#include <cfloat>
 #include "mpi.h"
 
 #define ASK_TAG 1
@@ -60,7 +60,6 @@ void createTypes() {
 
 void createList() {
     pthread_mutex_lock(&mutex);
-    //std::cout << "Proc " << rank << " is creating it's list" << std::endl;
     if (list != nullptr) {
         delete (list);
     }
@@ -75,19 +74,15 @@ void createList() {
 }
 
 int getTasks(int proc) {
-    //std::cout << "Proc " << rank << " is asking for tasks from " << proc << std::endl;
 
     int message = ASK_FOR_TASK;
     MPI_Send(&message, 1, MPI_INT, proc, ASK_TAG, MPI_COMM_WORLD);
-    //std::cout << "Proc " << rank << " sent 'ask' to " << proc << std::endl;
 
     ACK ack;
     MPI_Recv(&ack, 1, MPI_ACK, proc, ACK_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    //std::cout << "Proc " << rank << " received 'ack' from " << proc << std::endl;
 
     int taskCount = ack.count;
     if (!taskCount) {
-        //std::cout << "Proc " << rank << " cannot take tasks from " << proc << std::endl;
         return NO_TASK;
     } else {
         pthread_mutex_lock(&mutex);
@@ -108,8 +103,6 @@ double countListRes() {
     pthread_mutex_lock(&mutex);
     while (currentTask < listSize) {
         int weight = list[currentTask].weight;
-        /*std::cout << "Proc " << rank << " is doing task " << currentTask + 1 << " out of " << listSize
-                  << " with weight of " << weight << std::endl;*/
         pthread_mutex_unlock(&mutex);
 
         weightDone += weight;
@@ -126,20 +119,17 @@ double countListRes() {
 }
 
 void calculateImbalance(double duration) {
-    //std::cout << "Proc " << rank << " is calculating imbalance " << std::endl;
     double imbalanceTime;
     double imbalanceShare;
     double maxDuration = 0;
     double minDuration = DBL_MAX;
     if (rank) {
         MPI_Send(&duration, 1, MPI_DOUBLE, 0, IMBALANCE_TAG, MPI_COMM_WORLD);
-        //std::cout << "Proc " << rank << " sent it's duration " << std::endl;
     } else {
         double durations[size];
         durations[0] = duration;
         for (int i = 1; i < size; ++i) {
             MPI_Recv(durations + i, 1, MPI_DOUBLE, i, IMBALANCE_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            //std::cout << "Proc 0 received duration from " << i << " durations[" << i << "]" << " = " << durations[i] << std::endl;
         }
         for (int i = 0; i < size; ++i) {
             if (durations[i] < minDuration) {
@@ -170,7 +160,6 @@ void *processList(void *args) {
             createList();
         }
         globalRes += countListRes();
-        //std::cout << "Proc " << rank << " has done it's tasks" << std::endl;
 
         gotTask = false;
         for (int i = lastReceivedTask; i < size; i++) {
@@ -182,7 +171,6 @@ void *processList(void *args) {
             }
         }
         if (gotTask) {
-            //std::cout << "Proc " << rank << " got tasks for work" << std::endl;
             continue;
         }
 
@@ -212,23 +200,19 @@ void *loadBalancing(void *args) {
     while (message != TURN_OFF) {
         MPI_Status status;
         MPI_Recv(&message, 1, MPI_INT, MPI_ANY_SOURCE, ASK_TAG, MPI_COMM_WORLD, &status);
-        //std::cout << "Proc " << rank << " received 'ask' from " << status.MPI_SOURCE << std::endl;
 
         if (message == ASK_FOR_TASK) {
             ACK ack;
             pthread_mutex_lock(&mutex);
             if (currentTask >= listSize - 1 || gotTask) {
                 pthread_mutex_unlock(&mutex);
-                //std::cout << "Proc " << rank << " have no tasks to send to " << status.MPI_SOURCE << std::endl;
                 ack.count = 0;
                 MPI_Send(&ack, 1, MPI_ACK, status.MPI_SOURCE, ACK_TAG, MPI_COMM_WORLD);
-                //std::cout << "Proc " << rank << " sent 'ack' to "<< status.MPI_SOURCE << std::endl;
             } else {
                 double finishedFraction = currentTask / double(listSize);
                 int taskCount = (listSize - currentTask) * finishedFraction / (size - 1) + 1;
                 ack.count = taskCount;
                 MPI_Send(&ack, 1, MPI_ACK, status.MPI_SOURCE, ACK_TAG, MPI_COMM_WORLD);
-                //std::cout << "Proc " << rank << " sent 'ack' to " << status.MPI_SOURCE << std::endl;
 
                 auto *newList = new Task[taskCount];
                 for (int i = 0; i < taskCount; ++i) {
@@ -237,12 +221,10 @@ void *loadBalancing(void *args) {
                 listSize -= taskCount;
                 pthread_mutex_unlock(&mutex);
 
-                //std::cout << "Proc " << rank << " is sending " << taskCount << " tasks to " << status.MPI_SOURCE << std::endl;
                 MPI_Send(newList, taskCount, MPI_TASK, status.MPI_SOURCE, TASK_TAG, MPI_COMM_WORLD);
             }
         }
     }
-    //std::cout << "Proc " << rank << " is turning off" << std::endl;
     return nullptr;
 }
 
