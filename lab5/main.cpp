@@ -1,6 +1,7 @@
 #include <iostream>
 #include <pthread.h>
 #include <cmath>
+#include <float.h>
 #include "mpi.h"
 
 #define ASK_TAG 1
@@ -43,6 +44,35 @@ double totalImbalanceShare = 0;
 double totalMinDuration = 0;
 double totalMaxDuration = 0;
 
+
+void createTypes() {
+    int blockLengths[1] = {1};
+    MPI_Aint displacements[1];
+    displacements[0] = 0;
+    MPI_Datatype types[] = {MPI_INT};
+
+    MPI_Type_create_struct(1, blockLengths, displacements, types, &MPI_TASK);
+    MPI_Type_commit(&MPI_TASK);
+
+    MPI_Type_create_struct(1, blockLengths, displacements, types, &MPI_ACK);
+    MPI_Type_commit(&MPI_ACK);
+}
+
+void createList() {
+    pthread_mutex_lock(&mutex);
+    //std::cout << "Proc " << rank << " is creating it's list" << std::endl;
+    if (list != nullptr) {
+        delete (list);
+    }
+    list = new Task[startSize];
+    listSize = startSize;
+    currentTask = 0;
+
+    for (int i = 0; i < startSize; ++i) {
+        list[i].weight = startWeight + abs(50 - i % 100) * abs(rank - (curIter % size)) * startWeight;
+    }
+    pthread_mutex_unlock(&mutex);
+}
 
 int getTasks(int proc) {
     //std::cout << "Proc " << rank << " is asking for tasks from " << proc << std::endl;
@@ -95,28 +125,12 @@ double countListRes() {
     return globalRes;
 }
 
-void createList() {
-    pthread_mutex_lock(&mutex);
-    //std::cout << "Proc " << rank << " is creating it's list" << std::endl;
-    if (list != nullptr) {
-        delete (list);
-    }
-    list = new Task[startSize];
-    listSize = startSize;
-    currentTask = 0;
-
-    for (int i = 0; i < startSize; ++i) {
-        list[i].weight = startWeight + abs(50 - i % 100) * abs(rank - (curIter % size)) * startWeight;
-    }
-    pthread_mutex_unlock(&mutex);
-}
-
 void calculateImbalance(double duration) {
     //std::cout << "Proc " << rank << " is calculating imbalance " << std::endl;
     double imbalanceTime;
     double imbalanceShare;
     double maxDuration = 0;
-    double minDuration = 1e100;
+    double minDuration = DBL_MAX;
     if (rank) {
         MPI_Send(&duration, 1, MPI_DOUBLE, 0, IMBALANCE_TAG, MPI_COMM_WORLD);
         //std::cout << "Proc " << rank << " sent it's duration " << std::endl;
@@ -234,9 +248,21 @@ void *loadBalancing(void *args) {
 
 int main(int argc, char *argv[]) {
     int provided;
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+    int error = MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (provided != MPI_THREAD_MULTIPLE) {
+        if (!rank) {
+            char errorString[MPI_MAX_ERROR_STRING];
+            int len;
+            MPI_Error_string(error, errorString, &len);
+            std::cout << "ERROR: provided is not MPI_THREAD_MULTIPLE, provided: error code :"
+                      << error << " - " << errorString << " provided: " << provided << std::endl;
+        }
+        MPI_Finalize();
+        return 0;
+    }
 
     if (argc < 4) {
         if (!rank) {
@@ -250,6 +276,36 @@ int main(int argc, char *argv[]) {
     startSize = atoi(argv[2]);
     startWeight = atoi(argv[3]);
 
+    createTypes();
+
+    pthread_mutex_init(&mutex, nullptr);
+    pthread_attr_t attributes;
+    if (pthread_attr_init(&attributes) != 0) {
+        std::cout << "ERROR: Cannot init attributes: " << errno << std::endl;
+        MPI_Finalize();
+        return 0;
+    }
+    pthread_t threads[2];
+    double start = MPI_Wtime();
+    pthread_create(&threads[0], &attributes, loadBalancing, nullptr);
+    pthread_create(&threads[1], &attributes, processList, nullptr);
+    for (pthread_t thread : threads) {
+        if (pthread_join(thread, nullptr) != 0) {
+            std::cout << "ERROR: Cannot join a thread: " << errno << std::endl;
+            MPI_Finalize();
+            return 0;
+        }
+    }
+    double end = MPI_Wtime();
+
+    if (!rank) {
+        std::cout << "Average min duration: " << totalMinDuration / iterCount << "s" << std::endl;
+        std::cout << "Average max duration: " << totalMaxDuration / iterCount << "s" << std::endl;
+        std::cout << "Average imbalance share: " << totalImbalanceShare / iterCount << "%" << std::endl;
+        std::cout << "Time: " << end - start << std::endl;
+    }
+
+    pthread_mutex_destroy(&mutex);
     MPI_Finalize();
     return 0;
 }
