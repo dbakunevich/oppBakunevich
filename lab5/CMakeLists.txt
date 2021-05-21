@@ -3,4 +3,4 @@ project(lab5)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(lab5 main.cpp)
+add_executable(lab5 main.cpp execute.cpp execute.h balancing.cpp balancing.h)
