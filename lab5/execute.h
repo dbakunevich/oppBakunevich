@@ -1,6 +1,8 @@
 #ifndef EXECUTE_H
 #define EXECUTE_H
 
+#include <mpi.h>
+
 #define ASK_TAG 1
 #define TASK_TAG 3
 #define ACK_Task_List_TAG 4
@@ -22,6 +24,21 @@ typedef struct ACK_Task_List{
     ACK ack;
     Task *list;
 }ACK_Task_List;
+
+typedef struct BalansingArgs{
+    Task **list;
+    MPI_Datatype * MPI_TASK;
+    MPI_Datatype * MPI_ACK;
+    MPI_Datatype * MPI_ACK_Task_List;
+    pthread_mutex_t * mutex;
+
+    int * size;
+    int * rank;
+
+    int * currentTask;
+    int * listSize;
+    bool * gotTask;
+}BalansingArgs;
 
 void *processList(void *args);
 

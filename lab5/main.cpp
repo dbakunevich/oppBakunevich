@@ -22,6 +22,39 @@ int tasksDone = 0;
 long long weightDone = 0;
 bool gotTask = false;
 
+typedef struct ExecuteArgs{
+    Task *list;
+    MPI_Datatype MPI_TASK, MPI_ACK, MPI_ACK_Task_List;
+    pthread_mutex_t mutex;
+
+    int size, rank;
+
+    int startWeight;
+    int startSize;
+    int iterCount;
+    int curIter;
+
+    int currentTask;
+    int listSize;
+
+    int tasksDone;
+    long long weightDone;
+    bool gotTask;
+}ExecuteArgs;
+
+void fillArgs(BalansingArgs balansingArgs, ExecuteArgs executeArgs) {
+    balansingArgs.list = &list;
+    balansingArgs.MPI_TASK = &MPI_TASK;
+    balansingArgs.MPI_ACK = &MPI_ACK;
+    balansingArgs.MPI_ACK_Task_List = &MPI_ACK_Task_List;
+
+    balansingArgs.size = &size;
+    balansingArgs.rank = &rank;
+    balansingArgs.currentTask = &currentTask;
+    balansingArgs.listSize = &listSize;
+    balansingArgs.gotTask = &gotTask;
+}
+
 void createTypes() {
     int blockLengths[1] = {1};
     MPI_Aint displacements[1];
@@ -79,7 +112,13 @@ int main(int argc, char *argv[]) {
     }
     pthread_t threads[2];
     double start = MPI_Wtime();
-    pthread_create(&threads[0], &attributes, loadBalancing, nullptr);
+    BalansingArgs balansingArgs;
+    ExecuteArgs executeArgs;
+
+    fillArgs(balansingArgs, executeArgs);
+
+
+    pthread_create(&threads[0], &attributes, loadBalancing, (void*) &balansingArgs);
     pthread_create(&threads[1], &attributes, processList, nullptr);
     for (pthread_t thread : threads) {
         if (pthread_join(thread, nullptr) != 0) {
