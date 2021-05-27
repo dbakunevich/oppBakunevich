@@ -119,20 +119,20 @@ int main(int argc, char *argv[]) {
     MPI_Comm_size ( MPI_COMM_WORLD, &ProcNum);
     MPI_Comm_rank ( MPI_COMM_WORLD, &ProcRank);
 
-    double *A = nullptr;
-    double *b = nullptr;
-    double *x = nullptr;
-    double *u = nullptr;
+    double *A;
+    double *b;
+    double *x;
+    double *u;
 
     int *countRowsAtProc;
     int *shift;
 
     init(x, A, b, u, N, ProcRank, ProcNum, shift, countRowsAtProc);
 
-    auto *r = new double [N];
-    auto *z = new double [N];
-    auto *Ax = new double [N];
-    auto *Az = new double [N];
+    double *r = new double [N];
+    double *z = new double [N];
+    double *Ax = new double [N];
+    double *Az = new double [N];
 
     double      alpha,
                 beta,
