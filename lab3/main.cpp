@@ -1,10 +1,11 @@
 #include <iostream>
+#include <cstdlib>
 #include <mpi.h>
 
 /// A[N1 * N2], B[N2 * N3], C[N1 * N3]
-#define N1 8
-#define N2 4
-#define N3 4
+#define N1 1024
+#define N2 1024
+#define N3 1024
 
 /// Рандом для случайного заполнения матриц
 /// А и В
@@ -22,16 +23,6 @@ void fillMatrix(double * matrix, int firstBoard, int secondBoard){
             matrix[i * secondBoard + j] = getRandomDouble(MATRIX_MIN, MATRIX_MAX);
         }
     }
-}
-
-void printMatrix(const double * matrix, int firstBoard, int secondBoard){
-    for (size_t i = 0; i < firstBoard; ++i) {
-        for (size_t j = 0; j < secondBoard; ++j) {
-            printf("%f ", matrix[i * secondBoard + j]);
-        }
-        printf("\n");
-    }
-    printf("\n");
 }
 
 void createMatrix(double ** A, double ** B, double ** C){
@@ -111,7 +102,6 @@ void  mainWork(double * A, double  * B, double * C, int ProcNum, int ProcRank, c
     scatterA_B(A, segmentA, B, segmentB, coords, segmentRows, segmentCols, rowComm, colComm);
 
 
-    double segmentMulTime = -MPI_Wtime();
     for (int i = 0; i < segmentRows; ++i) {
         for (int k = 0; k < N2; ++k) {
             for (int j = 0; j < segmentCols; ++j) {
@@ -119,7 +109,6 @@ void  mainWork(double * A, double  * B, double * C, int ProcNum, int ProcRank, c
             }
         }
     }
-    segmentMulTime += MPI_Wtime();
 
     gatherC(C, segmentC, dims, coords, segmentRows, segmentCols,
             ProcNum, gridComm, rowComm, colComm);
@@ -127,12 +116,7 @@ void  mainWork(double * A, double  * B, double * C, int ProcNum, int ProcRank, c
     matMulTime += MPI_Wtime();
 
     if (ProcRank == 0) {
-        std::cout << "segmentMulTime(0): " << segmentMulTime << "sec" << std::endl;
         std::cout << "matMulTime: " << matMulTime << "sec" << std::endl;
-
-        printMatrix(A, N1, N2);
-        printMatrix(B, N2, N3);
-        printMatrix(C, N1, N3);
     }
 
     delete[] segmentA;
@@ -147,7 +131,7 @@ int main(int argc, char *argv[]) {
     MPI_Comm rowComm;
     MPI_Comm colComm;
 
-    int dims[2] = {0, 0};
+    int dims[2] = {4, 4};
     int periods[2] = {0, 0};
     int coords[2];
     int reorder = 0;
@@ -162,9 +146,9 @@ int main(int argc, char *argv[]) {
     MPI_Comm_split(gridComm, coords[1], coords[0], &rowComm);
     MPI_Comm_split(gridComm, coords[0], coords[1], &colComm);
 
-    double *A = nullptr;
-    double *B = nullptr;
-    double *C = nullptr;
+    double *A;
+    double *B;
+    double *C;
 
     if (ProcRank == 0) {
         createMatrix(&A, &B, &C);
@@ -172,10 +156,11 @@ int main(int argc, char *argv[]) {
 
     mainWork(A, B, C, ProcNum, ProcRank, dims, coords, gridComm, rowComm, colComm);
 
-    delete[] A;
-    delete[] B;
-    delete[] C;
-
+    if (ProcRank == 0) {
+        delete[] A;
+        delete[] B;
+        delete[] C;
+    }
     MPI_Finalize();
     return 0;
 }
