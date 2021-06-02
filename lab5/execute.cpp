@@ -3,31 +3,15 @@
 #include "execute.h"
 #include "mpi.h"
 
-extern Task *list;
-extern MPI_Datatype MPI_TASK, MPI_ACK, MPI_ACK_Task_List;
-extern pthread_mutex_t mutex;
-
-extern int size, rank;
-
-extern int startWeight;
-extern int startSize;
-extern int iterCount;
-extern int curIter;
-
-extern int currentTask;
-extern int listSize;
-
-extern int tasksDone;
-extern long long weightDone;
-extern bool gotTask;
-
-void createList() {
+void createList(pthread_mutex_t &mutex, Task * list, int startSize, int listSize,
+                int &currentTask, int startWeight, int rank, int curIter, int size) {
     pthread_mutex_lock(&mutex);
     if (list != nullptr) {
         delete (list);
     }
     list = new Task[startSize];
     listSize = startSize;
+
     currentTask = 0;
 
     for (int i = 0; i < startSize; ++i) {
@@ -36,7 +20,8 @@ void createList() {
     pthread_mutex_unlock(&mutex);
 }
 
-int getTasks(int proc) {
+int getTasks(int proc, Task * list, int rank, int &currentTask, bool &gotTask,
+             MPI_Datatype MPI_ACK, MPI_Datatype MPI_ACK_Task_List, int &listSize) {
 
     int message = ASK_FOR_TASK;
     MPI_Send(&message, 1, MPI_INT, proc, ASK_TAG, MPI_COMM_WORLD);
@@ -61,7 +46,8 @@ int getTasks(int proc) {
     }
 }
 
-double countListRes() {
+double countListRes(pthread_mutex_t &mutex, Task *list, int listSize,
+                    int &currentTask, long long &weightDone, int &tasksDone) {
     double globalRes = 0;
     pthread_mutex_lock(&mutex);
     while (currentTask < listSize) {
@@ -82,20 +68,45 @@ double countListRes() {
 }
 
 void *processList(void *args) {
+    Args * arguments = static_cast<Args *> (args);
+
+    Task *list = arguments->list;
+    MPI_Datatype MPI_ACK = arguments->MPI_ACK;
+    MPI_Datatype MPI_ACK_Task_List = arguments->MPI_ACK_Task_List;
+    pthread_mutex_t mutex = arguments->mutex;
+    int size = arguments->size;
+    int rank = arguments->rank;
+    int currentTask = arguments->currentTask;
+    int listSize = arguments->listSize;
+    bool gotTask = arguments->gotTask;
+
+
+    int startWeight = arguments->startWeight;
+    int startSize = arguments->startSize;
+    int iterCount = arguments->iterCount;
+    int curIter = arguments->curIter;
+    int tasksDone = arguments->tasksDone;
+    long long weightDone = arguments->weightDone;
+
     double globalRes = 0;
     double timeStart, timeEnd, duration;
     int lastReceivedTask = 0;
     while (curIter < iterCount) {
         if (!gotTask) {
             timeStart = MPI_Wtime();
-            createList();
+            createList(mutex, list, startSize, listSize,
+                    currentTask, startWeight, rank, curIter, size);
+            printf("%d ls", listSize);
+
         }
-        globalRes += countListRes();
+        globalRes += countListRes(mutex, list, listSize,
+                currentTask, weightDone, tasksDone);
 
         gotTask = false;
         for (int i = lastReceivedTask; i < size; i++) {
             if (i != rank) {
-                if (getTasks(i) == TASK) {
+                if (getTasks(i, list, rank, currentTask, gotTask,
+                        MPI_ACK, MPI_ACK_Task_List, listSize) == TASK) {
                     lastReceivedTask = i;
                     break;
                 }
@@ -110,7 +121,7 @@ void *processList(void *args) {
         MPI_Barrier(MPI_COMM_WORLD);
 
         std::cout << "Proc " << rank << " finished " << curIter + 1
-                  << " list with " << tasksDone << " tasks and " << weightDone << " weight done" << std::endl;
+                  << " list_execute with " << tasksDone << " tasks and " << weightDone << " weight done" << std::endl;
         std::cout << "Proc " << rank << " global res is " << globalRes << " time spent on iteration "
                   << duration << std::endl;
 

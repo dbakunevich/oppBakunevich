@@ -2,7 +2,18 @@
 #include "mpi.h"
 
 void *loadBalancing(void *args) {
-    BalansingArgs arg = *(BalansingArgs *) args;
+    Args *arguments =  static_cast<Args *>(args);
+
+    Task *list = arguments->list;
+    MPI_Datatype MPI_TASK = arguments->MPI_TASK;
+    MPI_Datatype MPI_ACK = arguments->MPI_ACK;
+    MPI_Datatype MPI_ACK_Task_List = arguments->MPI_ACK_Task_List;
+    pthread_mutex_t mutex = arguments->mutex;
+    int size = arguments->size;
+    int currentTask = arguments->currentTask;
+    int listSize = arguments->listSize;
+    bool gotTask = arguments->gotTask;
+
     int message = TURN_ON;
     while (message != TURN_OFF) {
         MPI_Status status;
@@ -10,25 +21,25 @@ void *loadBalancing(void *args) {
 
         if (message == ASK_FOR_TASK) {
             ACK_Task_List ackTaskList;
-            pthread_mutex_lock(arg.mutex);
-            if (arg.currentTask >= arg.listSize - 1 || arg.gotTask) {
-                pthread_mutex_unlock(arg.mutex);
+            pthread_mutex_lock(&mutex);
+            if (currentTask >= listSize - 1 || gotTask) {
+                pthread_mutex_unlock(&mutex);
                 ackTaskList.ack.count = 0;
-                MPI_Send(&ackTaskList, 1, *arg.MPI_ACK_Task_List, status.MPI_SOURCE, ACK_Task_List_TAG, MPI_COMM_WORLD);
+                MPI_Send(&ackTaskList, 1, MPI_ACK_Task_List, status.MPI_SOURCE, ACK_Task_List_TAG, MPI_COMM_WORLD);
             } else {
-                double finishedFraction = *arg.currentTask / double(*arg.listSize);
-                int taskCount = (arg.listSize - arg.currentTask) * finishedFraction / (*arg.size - 1) + 1;
+                double finishedFraction = currentTask / double(listSize);
+                int taskCount = (listSize - currentTask) * finishedFraction / (size - 1) + 1;
                 ackTaskList.ack.count = taskCount;
 
                 auto *newList = new Task[taskCount];
                 for (int i = 0; i < taskCount; ++i) {
-                    newList[i].weight = arg.list[*arg.listSize - taskCount + i]->weight;
+                    newList[i].weight = list[listSize - taskCount + i].weight;
                 }
-                arg.listSize -= taskCount;
+                listSize -= taskCount;
                 ackTaskList.list = newList;
-                MPI_Send(&ackTaskList, 1, *arg.MPI_ACK_Task_List, status.MPI_SOURCE, ACK_Task_List_TAG, MPI_COMM_WORLD);
-                MPI_Send(ackTaskList.list, taskCount, *arg.MPI_TASK, status.MPI_SOURCE, TASK_TAG, MPI_COMM_WORLD);
-                pthread_mutex_unlock(arg.mutex);
+                MPI_Send(&ackTaskList, 1, MPI_ACK_Task_List, status.MPI_SOURCE, ACK_Task_List_TAG, MPI_COMM_WORLD);
+                MPI_Send(ackTaskList.list, taskCount, MPI_TASK, status.MPI_SOURCE, TASK_TAG, MPI_COMM_WORLD);
+                pthread_mutex_unlock(&mutex);
             }
         }
     }

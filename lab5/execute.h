@@ -25,20 +25,25 @@ typedef struct ACK_Task_List{
     Task *list;
 }ACK_Task_List;
 
-typedef struct BalansingArgs{
-    Task **list;
-    MPI_Datatype * MPI_TASK;
-    MPI_Datatype * MPI_ACK;
-    MPI_Datatype * MPI_ACK_Task_List;
-    pthread_mutex_t * mutex;
+typedef struct Args{
+    Task *list;
+    MPI_Datatype MPI_TASK, MPI_ACK, MPI_ACK_Task_List;
+    pthread_mutex_t mutex;
 
-    int * size;
-    int * rank;
+    int size, rank;
 
-    int * currentTask;
-    int * listSize;
-    bool * gotTask;
-}BalansingArgs;
+    int startWeight;
+    int startSize;
+    int iterCount;
+    int curIter;
+
+    int currentTask;
+    int listSize;
+
+    int tasksDone;
+    long long weightDone;
+    bool gotTask;
+} Args;
 
 void *processList(void *args);
 
