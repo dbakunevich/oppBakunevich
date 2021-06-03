@@ -3,8 +3,27 @@
 #include "execute.h"
 #include "mpi.h"
 
-void createList(pthread_mutex_t &mutex, Task * list, int startSize, int listSize,
-                int &currentTask, int startWeight, int rank, int curIter, int size) {
+Task *list;
+MPI_Datatype MPI_TASK, MPI_ACK, MPI_ACK_Task_List;
+pthread_mutex_t mutex;
+
+int size, rank;
+
+int currentTask;
+int listSize;
+
+bool gotTask;
+
+int startWeight;
+int startSize;
+int iterCount;
+
+int curIter = 0;
+int tasksDone = 0;
+long weightDone = 0;
+
+
+void createList() {
     pthread_mutex_lock(&mutex);
     if (list != nullptr) {
         delete (list);
@@ -20,8 +39,7 @@ void createList(pthread_mutex_t &mutex, Task * list, int startSize, int listSize
     pthread_mutex_unlock(&mutex);
 }
 
-int getTasks(int proc, Task * list, int rank, int &currentTask, bool &gotTask,
-             MPI_Datatype MPI_ACK, MPI_Datatype MPI_ACK_Task_List, int &listSize) {
+int getTasks(int proc) {
 
     int message = ASK_FOR_TASK;
     MPI_Send(&message, 1, MPI_INT, proc, ASK_TAG, MPI_COMM_WORLD);
@@ -46,9 +64,8 @@ int getTasks(int proc, Task * list, int rank, int &currentTask, bool &gotTask,
     }
 }
 
-double countListRes(pthread_mutex_t &mutex, Task *list, int listSize,
-                    int &currentTask, long long &weightDone, int &tasksDone) {
-    double globalRes = 0;
+long double countListRes() {
+    long double globalRes = 0;
     pthread_mutex_lock(&mutex);
     while (currentTask < listSize) {
         int weight = list[currentTask].weight;
@@ -70,43 +87,35 @@ double countListRes(pthread_mutex_t &mutex, Task *list, int listSize,
 void *processList(void *args) {
     Args * arguments = static_cast<Args *> (args);
 
-    Task *list = arguments->list;
-    MPI_Datatype MPI_ACK = arguments->MPI_ACK;
-    MPI_Datatype MPI_ACK_Task_List = arguments->MPI_ACK_Task_List;
-    pthread_mutex_t mutex = arguments->mutex;
-    int size = arguments->size;
-    int rank = arguments->rank;
-    int currentTask = arguments->currentTask;
-    int listSize = arguments->listSize;
-    bool gotTask = arguments->gotTask;
+    list = arguments->list;
+    MPI_ACK = arguments->MPI_ACK;
+    MPI_ACK_Task_List = arguments->MPI_ACK_Task_List;
+    mutex = arguments->mutex;
+    size = arguments->size;
+    rank = arguments->rank;
+    currentTask = arguments->currentTask;
+    listSize = arguments->listSize;
+    gotTask = arguments->gotTask;
+    startWeight = arguments->startWeight;
+    startSize = arguments->startSize;
+    iterCount = arguments->iterCount;
 
 
-    int startWeight = arguments->startWeight;
-    int startSize = arguments->startSize;
-    int iterCount = arguments->iterCount;
-    int curIter = arguments->curIter;
-    int tasksDone = arguments->tasksDone;
-    long long weightDone = arguments->weightDone;
-
-    double globalRes = 0;
+    long double globalRes = 0;
     double timeStart, timeEnd, duration;
     int lastReceivedTask = 0;
     while (curIter < iterCount) {
         if (!gotTask) {
             timeStart = MPI_Wtime();
-            createList(mutex, list, startSize, listSize,
-                    currentTask, startWeight, rank, curIter, size);
-            printf("%d ls", listSize);
+            createList();
 
         }
-        globalRes += countListRes(mutex, list, listSize,
-                currentTask, weightDone, tasksDone);
+        globalRes += countListRes();
 
         gotTask = false;
         for (int i = lastReceivedTask; i < size; i++) {
             if (i != rank) {
-                if (getTasks(i, list, rank, currentTask, gotTask,
-                        MPI_ACK, MPI_ACK_Task_List, listSize) == TASK) {
+                if (getTasks(i) == TASK) {
                     lastReceivedTask = i;
                     break;
                 }
@@ -121,7 +130,7 @@ void *processList(void *args) {
         MPI_Barrier(MPI_COMM_WORLD);
 
         std::cout << "Proc " << rank << " finished " << curIter + 1
-                  << " list_execute with " << tasksDone << " tasks and " << weightDone << " weight done" << std::endl;
+                  << " list with " << tasksDone << " tasks and " << weightDone << " weight done" << std::endl;
         std::cout << "Proc " << rank << " global res is " << globalRes << " time spent on iteration "
                   << duration << std::endl;
 

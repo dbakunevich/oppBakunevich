@@ -4,28 +4,14 @@
 #include "execute.h"
 #include "balancing.h"
 
-Task *list_execute = nullptr;
-MPI_Datatype MPI_TASK_execute, MPI_ACK, MPI_ACK_Task_List;
-pthread_mutex_t mutex;
 
-int size, rank;
+void fillArgs(Args * args, Task *list, MPI_Datatype MPI_TASK,
+              MPI_Datatype MPI_ACK, MPI_Datatype MPI_ACK_Task_List,
+              pthread_mutex_t &mutex, int size, int rank, int startWeight,
+              int startSize, int iterCount, int listSize) {
 
-int startWeight;
-int startSize;
-int iterCount;
-int curIter = 0;
-
-int currentTask = 0;
-int listSize;
-
-int tasksDone = 0;
-long long weightDone = 0;
-bool gotTask = false;
-
-void fillArgs(Args * args) {
-
-    args->list = list_execute;
-    args->MPI_TASK = MPI_TASK_execute;
+    args->list = list;
+    args->MPI_TASK = MPI_TASK;
     args->MPI_ACK = MPI_ACK;
     args->MPI_ACK_Task_List = MPI_ACK_Task_List;
     args->mutex = mutex;
@@ -34,22 +20,20 @@ void fillArgs(Args * args) {
     args->startWeight = startWeight;
     args->startSize = startSize;
     args->iterCount = iterCount;
-    args->curIter = curIter;
-    args->currentTask = currentTask;
+    args->currentTask = 0;
     args->listSize = listSize;
-    args->tasksDone = tasksDone;
-    args->weightDone = weightDone;
-    args->gotTask = gotTask;
+    args->gotTask = false;
 }
 
-void createTypes() {
+void createTypes(MPI_Datatype &MPI_TASK, MPI_Datatype &MPI_ACK,
+                 MPI_Datatype &MPI_ACK_Task_List) {
     int blockLengths[1] = {1};
     MPI_Aint displacements[1];
     displacements[0] = 0;
     MPI_Datatype types[] = {MPI_INT};
 
-    MPI_Type_create_struct(1, blockLengths, displacements, types, &MPI_TASK_execute);
-    MPI_Type_commit(&MPI_TASK_execute);
+    MPI_Type_create_struct(1, blockLengths, displacements, types, &MPI_TASK);
+    MPI_Type_commit(&MPI_TASK);
 
     MPI_Type_create_struct(1, blockLengths, displacements, types, &MPI_ACK);
     MPI_Type_commit(&MPI_ACK);
@@ -59,6 +43,19 @@ void createTypes() {
 }
 
 int main(int argc, char *argv[]) {
+
+    Task *list = nullptr;
+    MPI_Datatype MPI_TASK, MPI_ACK, MPI_ACK_Task_List;
+    pthread_mutex_t mutex;
+
+    int size, rank;
+
+    int startWeight;
+    int startSize;
+    int iterCount;
+
+    int listSize = 0;
+
     int provided;
     int error = MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -88,7 +85,8 @@ int main(int argc, char *argv[]) {
     startSize = atoi(argv[2]);
     startWeight = atoi(argv[3]);
 
-    createTypes();
+    createTypes(MPI_TASK, MPI_ACK,
+            MPI_ACK_Task_List);
 
     pthread_mutex_init(&mutex, nullptr);
     pthread_attr_t attributes;
@@ -98,10 +96,12 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     pthread_t threads[2];
-    double start = MPI_Wtime();
-
     Args* args = new Args;
-    fillArgs(args);
+    fillArgs(args, list, MPI_TASK, MPI_ACK, MPI_ACK_Task_List,
+             mutex, size, rank, startWeight,
+             startSize, iterCount, listSize);
+
+    double start = MPI_Wtime();
     pthread_create(&threads[0], &attributes, loadBalancing, (void *) args);
     pthread_create(&threads[1], &attributes, processList, (void *) args);
     for (pthread_t thread : threads) {
@@ -118,6 +118,12 @@ int main(int argc, char *argv[]) {
     }
 
     pthread_mutex_destroy(&mutex);
+    free(list);
+    free(MPI_TASK);
+    free(MPI_ACK);
+    free(MPI_ACK_Task_List);
+    delete args;
+
     MPI_Finalize();
     return 0;
 }

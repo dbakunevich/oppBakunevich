@@ -32,17 +32,16 @@ typedef struct Args{
 
     int size, rank;
 
-    int startWeight;
-    int startSize;
-    int iterCount;
-    int curIter;
-
     int currentTask;
     int listSize;
 
-    int tasksDone;
-    long long weightDone;
     bool gotTask;
+
+    int startWeight;
+    int startSize;
+    int iterCount;
+
+
 } Args;
 
 void *processList(void *args);
