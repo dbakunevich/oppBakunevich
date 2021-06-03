@@ -5,8 +5,6 @@ void *loadBalancing(void *args) {
     Args *arguments =  static_cast<Args *>(args);
 
     Task *list = arguments->list;
-    MPI_Datatype MPI_TASK = arguments->MPI_TASK;
-    MPI_Datatype MPI_ACK = arguments->MPI_ACK;
     MPI_Datatype MPI_ACK_Task_List = arguments->MPI_ACK_Task_List;
     pthread_mutex_t mutex = arguments->mutex;
     int size = arguments->size;
@@ -38,7 +36,6 @@ void *loadBalancing(void *args) {
                 listSize -= taskCount;
                 ackTaskList.list = newList;
                 MPI_Send(&ackTaskList, 1, MPI_ACK_Task_List, status.MPI_SOURCE, ACK_Task_List_TAG, MPI_COMM_WORLD);
-                MPI_Send(ackTaskList.list, taskCount, MPI_TASK, status.MPI_SOURCE, TASK_TAG, MPI_COMM_WORLD);
                 pthread_mutex_unlock(&mutex);
             }
         }

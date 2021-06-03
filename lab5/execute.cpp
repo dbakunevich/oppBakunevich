@@ -45,9 +45,11 @@ int getTasks(int proc) {
     MPI_Send(&message, 1, MPI_INT, proc, ASK_TAG, MPI_COMM_WORLD);
 
     ACK ack;
+    Task * task;
     ACK_Task_List ackTaskList;
     MPI_Recv(&ackTaskList, 1, MPI_ACK_Task_List, proc, ACK_Task_List_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     ack = ackTaskList.ack;
+    task = ackTaskList.list;
 
     int taskCount = ack.count;
     if (!taskCount) {
@@ -55,13 +57,20 @@ int getTasks(int proc) {
     } else {
         delete (list);
         list = new Task[taskCount];
-        std::cout << "Proc " << rank << " is getting " << taskCount << " tasks from " << proc << std::endl;
-        MPI_Recv(list, taskCount, MPI_ACK, proc, TASK_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        list = task;
         currentTask = 0;
         listSize = taskCount;
         gotTask = true;
         return TASK;
     }
+}
+
+long double completeTask(int weight) {
+    long double globalRes = 0;
+    for (int i = 0; i < weight; i++) {
+        globalRes += sin(i);
+    }
+    return globalRes;
 }
 
 long double countListRes() {
@@ -72,9 +81,7 @@ long double countListRes() {
         pthread_mutex_unlock(&mutex);
 
         weightDone += weight;
-        for (int i = 0; i < weight; i++) {
-            globalRes += sin(i);
-        }
+        globalRes = completeTask(weight);
 
         pthread_mutex_lock(&mutex);
         currentTask++;

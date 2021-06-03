@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
 
     if (argc < 4) {
         if (!rank) {
-            std::cout << "Usage: loadBalancing.exe iter_count list_size start_weight" << std::endl;
+            std::cout << "Usage: " << argv[0] <<" iter_count list_size start_weight" << std::endl;
         }
         MPI_Finalize();
         return 0;
@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
     if (!rank) {
         std::cout << "Time: " << end - start << std::endl;
     }
-
+    pthread_attr_destroy(&attributes);
     pthread_mutex_destroy(&mutex);
     free(list);
     free(MPI_TASK);
