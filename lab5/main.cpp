@@ -1,8 +1,10 @@
 #include <iostream>
 #include <pthread.h>
+#include <cstdlib>
+#include <sys/types.h>
 #include "mpi.h"
 #include "execute.h"
-#include "balancing.h"
+#include "balansing.h"
 
 
 void fillArgs(Args * args, Task *list, MPI_Datatype MPI_TASK,
@@ -22,7 +24,6 @@ void fillArgs(Args * args, Task *list, MPI_Datatype MPI_TASK,
     args->iterCount = iterCount;
     args->currentTask = 0;
     args->listSize = listSize;
-    args->gotTask = false;
 }
 
 void createTypes(MPI_Datatype &MPI_TASK, MPI_Datatype &MPI_ACK,
@@ -43,8 +44,11 @@ void createTypes(MPI_Datatype &MPI_TASK, MPI_Datatype &MPI_ACK,
 }
 
 int main(int argc, char *argv[]) {
+    int provided;
+    int error = MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
 
-    Task *list = nullptr;
+
+    Task *list = NULL;
     MPI_Datatype MPI_TASK, MPI_ACK, MPI_ACK_Task_List;
     pthread_mutex_t mutex;
 
@@ -56,8 +60,6 @@ int main(int argc, char *argv[]) {
 
     int listSize = 0;
 
-    int provided;
-    int error = MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -119,9 +121,6 @@ int main(int argc, char *argv[]) {
     pthread_attr_destroy(&attributes);
     pthread_mutex_destroy(&mutex);
     free(list);
-    free(MPI_TASK);
-    free(MPI_ACK);
-    free(MPI_ACK_Task_List);
     delete args;
 
     MPI_Finalize();

@@ -1,10 +1,11 @@
 #include <iostream>
 #include <cmath>
+#include <cstdlib>
 #include "execute.h"
 #include "mpi.h"
 
 Task *list;
-MPI_Datatype MPI_TASK, MPI_ACK, MPI_ACK_Task_List;
+MPI_Datatype MPI_ACK_Task_List;
 pthread_mutex_t mutex;
 
 int size, rank;
@@ -25,7 +26,7 @@ long weightDone = 0;
 
 void createList() {
     pthread_mutex_lock(&mutex);
-    if (list != nullptr) {
+    if (list != NULL) {
         delete (list);
     }
     list = new Task[startSize];
@@ -95,27 +96,23 @@ void *processList(void *args) {
     Args * arguments = static_cast<Args *> (args);
 
     list = arguments->list;
-    MPI_ACK = arguments->MPI_ACK;
     MPI_ACK_Task_List = arguments->MPI_ACK_Task_List;
     mutex = arguments->mutex;
     size = arguments->size;
     rank = arguments->rank;
     currentTask = arguments->currentTask;
     listSize = arguments->listSize;
-    gotTask = arguments->gotTask;
     startWeight = arguments->startWeight;
     startSize = arguments->startSize;
     iterCount = arguments->iterCount;
 
+    gotTask = false;
 
     long double globalRes = 0;
-    double timeStart, timeEnd, duration;
     int lastReceivedTask = 0;
     while (curIter < iterCount) {
         if (!gotTask) {
-            timeStart = MPI_Wtime();
             createList();
-
         }
         globalRes += countListRes();
 
@@ -132,14 +129,8 @@ void *processList(void *args) {
             continue;
         }
 
-        timeEnd = MPI_Wtime();
-        duration = timeEnd - timeStart;
         MPI_Barrier(MPI_COMM_WORLD);
 
-        std::cout << "Proc " << rank << " finished " << curIter + 1
-                  << " list with " << tasksDone << " tasks and " << weightDone << " weight done" << std::endl;
-        std::cout << "Proc " << rank << " global res is " << globalRes << " time spent on iteration "
-                  << duration << std::endl;
 
         tasksDone = 0;
         weightDone = 0;
@@ -149,5 +140,5 @@ void *processList(void *args) {
     }
     int message = TURN_OFF;
     MPI_Send(&message, 1, MPI_INT, rank, ASK_TAG, MPI_COMM_WORLD);
-    return nullptr;
+    return NULL;
 }

@@ -2,9 +2,10 @@
 #define EXECUTE_H
 
 #include <mpi.h>
+#include <pthread.h>
+#include <sys/types.h>
 
 #define ASK_TAG 1
-#define TASK_TAG 3
 #define ACK_Task_List_TAG 4
 #define TASK 10
 #define NO_TASK 11
@@ -34,8 +35,6 @@ typedef struct Args{
 
     int currentTask;
     int listSize;
-
-    bool gotTask;
 
     int startWeight;
     int startSize;
